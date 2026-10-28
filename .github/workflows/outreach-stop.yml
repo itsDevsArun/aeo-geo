@@ -1,0 +1,16 @@
+# Graceful stop for a running outreach-run job.
+# The running job checks every 30 s whether this workflow was run after it started;
+# if so it finishes the current website and then stops taking new work.
+name: outreach-stop
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  signal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: echo "Graceful stop requested. The running outreach-run job will finish its current website and stop."

@@ -32,7 +32,7 @@ export async function getOverview(campaignId: string | null): Promise<Overview> 
         and not exists (select 1 from attempts t where t.business_id = c.business_id and t.mode = 'live' and t.status not in ('failed_before_submit','reconciled_not_sent'))
         and not exists (select 1 from suppressions su join business_domains bd on bd.domain = su.domain where bd.business_id = c.business_id)) as approved_queue,
       (select count(distinct cp.candidate_id)::int from contact_pages cp join candidates c on c.id = cp.candidate_id where c.campaign_id = ${campaignId}) as forms_inspected,
-      (select count(*)::int from attempts where campaign_id = ${campaignId} and mode = 'live' and submit_started_at is not null) as submission_attempts,
+      (select count(*)::int from attempts where campaign_id = ${campaignId} and mode = 'live' and submit_started_at is not null and status <> 'failed_before_submit') as submission_attempts,
       (select count(*)::int from attempts where campaign_id = ${campaignId} and mode = 'live' and status = 'confirmed') as confirmation_observed,
       (select count(*)::int from attempts where campaign_id = ${campaignId} and mode = 'live' and status in ('unclear','uncertain')) as unclear_attempts,
       (select count(*)::int from attempts where campaign_id = ${campaignId} and status in ('error_after_submit','dry_run_failed'))

@@ -102,6 +102,19 @@ export class RunnerApi {
     return null;
   }
 
+  /**
+   * GitHub-only mode: ask the orchestrator to durably commit + push the state branch.
+   * Returns false on any failure (callers must then NOT submit).
+   */
+  async checkpoint(reason: string): Promise<boolean> {
+    try {
+      const r = await this.post<{ ok: boolean }>("checkpoint", { reason }, { retries: 0 });
+      return r.ok === true;
+    } catch {
+      return false;
+    }
+  }
+
   evidenceFailure(body: { kind: string; candidateId?: string; attemptId?: string; pageUrl?: string; error: string }) {
     return this.post("evidence-failure", body).catch(() => undefined);
   }

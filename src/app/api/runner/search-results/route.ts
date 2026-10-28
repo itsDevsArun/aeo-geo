@@ -1,5 +1,5 @@
 import { HttpError, json, readJson } from "@/server/http";
-import { runnerRoute } from "@/server/route";
+import { runnerRoute } from "@/server/runner-route";
 import { ingestSearchResults } from "@/server/services/candidates";
 import { SearchResultsRequest } from "@/shared/runner-api";
 

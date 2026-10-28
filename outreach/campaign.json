@@ -1,0 +1,26 @@
+{
+  "name": "Devs Arun AEO/GEO outreach",
+  "industry": "",
+  "country": "",
+  "city_region": "",
+  "search_language": "en",
+  "search_queries": [],
+  "max_candidates": 50,
+  "max_live_attempts_per_run": 10,
+  "min_delay_seconds": 60,
+  "excluded_domains": [],
+  "dry_run_fill_domains": [],
+  "suppressed_domains": [],
+  "related_domains": [],
+  "allow_live": false,
+  "sender": {
+    "name": "Arun",
+    "business": "Devs Arun",
+    "email": "itsdevsarun@gmail.com",
+    "phone": "+91 76673 11203",
+    "website": "https://devsarun.io/aeo-geo/"
+  },
+  "sender_verified": false,
+  "active_template": "short",
+  "evidence_retention_days": 180
+}

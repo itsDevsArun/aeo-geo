@@ -2,7 +2,7 @@
   "name": "devs-arun-outreach",
   "version": "1.0.0",
   "private": true,
-  "description": "Devs Arun — AEO/GEO contact-form outreach dashboard and Playwright runner",
+  "description": "Devs Arun \u2014 AEO/GEO contact-form outreach dashboard and Playwright runner",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22"
@@ -19,7 +19,9 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration --no-file-parallelism",
     "test:e2e": "playwright test",
-    "test:e2e:build": "NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon-test-key next build"
+    "test:e2e:build": "NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon-test-key next build",
+    "outreach": "node --conditions=react-server --import tsx scripts/gh/outreach.ts",
+    "test:github": "vitest run tests/github-mode --no-file-parallelism"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

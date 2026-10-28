@@ -1,6 +1,6 @@
 import { runEvent } from "@/server/audit";
 import { json, readJson } from "@/server/http";
-import { runnerRoute } from "@/server/route";
+import { runnerRoute } from "@/server/runner-route";
 import { EventsRequest } from "@/shared/runner-api";
 
 export const POST = runnerRoute(async (req, r) => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { HttpError, json } from "@/server/http";
-import { runnerRoute } from "@/server/route";
+import { runnerRoute } from "@/server/runner-route";
 import { storeEvidence } from "@/server/services/work";
 import { EVIDENCE_KINDS, MAX_EVIDENCE_BYTES } from "@/shared/constants";
 
