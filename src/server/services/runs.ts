@@ -7,7 +7,7 @@ import { HttpError } from "../http";
 import { newRunToken, sha256, type RunRow } from "../runner-auth";
 import { assertLiveReady, getCampaign } from "./campaigns";
 import { getTemplateVersion } from "./templates";
-import { buildDiscoveryQueries } from "@/shared/discovery";
+import { buildDiscoveryQueries, hasTargetMarket } from "@/shared/discovery";
 import type { ClaimResponse, HeartbeatResponse } from "@/shared/runner-api";
 import type { RunMode } from "@/shared/constants";
 
@@ -65,10 +65,9 @@ export async function startRun(campaignId: string, mode: RunMode, actor: string)
   if (active) throw new HttpError(409, "Another run is already active for this campaign.");
   const problems: string[] = [];
   if (mode === "discovery") {
-    if (!campaign.industry || !campaign.country || !campaign.city_region) {
-      problems.push("Set the target industry, country and city/region in Campaign settings before discovery.");
-    }
-    if (buildDiscoveryQueries(campaign).length === 0) problems.push("No search queries could be generated.");
+    if (!hasTargetMarket(campaign)) {
+      problems.push('Target market not set: in outreach/campaign.json set "countries" (e.g. ["US","AU","CA","ALL"]) and either "search_queries" or a specific "industry" (or Campaign settings in the optional dashboard).');
+    } else if (buildDiscoveryQueries(campaign).length === 0) problems.push("No search queries could be generated.");
   } else {
     if (!campaign.active_template_version_id) problems.push("Select an active message template.");
     const [{ n }] = await sql<{ n: number }[]>`
@@ -101,7 +100,8 @@ export async function startRun(campaignId: string, mode: RunMode, actor: string)
         values (${campaignId}, ${mode}, ${actor}, ${env.processingBudgetMinutes}) returning *`;
       if (mode === "discovery") {
         for (const q of buildDiscoveryQueries(campaign)) {
-          await tx`insert into discovery_queries (campaign_id, query) values (${campaignId}, ${q}) on conflict (campaign_id, query) do nothing`;
+          await tx`insert into discovery_queries (campaign_id, query, country, priority) values (${campaignId}, ${q.query}, ${q.country}, ${q.priority})
+            on conflict (campaign_id, query, country) do update set priority = excluded.priority`;
         }
       }
       await runEvent({ runId: r.id, campaignId, type: "run_queued", message: `${mode} run requested by ${actor}` }, tx);

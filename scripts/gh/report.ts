@@ -142,7 +142,7 @@ export async function writeReports(opts: {
   // ---- Overview (README.md renders when you open the reports/ folder) ---------
   const recent = await sql<Record<string, unknown>[]>`select id, mode, status, finish_reason, created_at, needs_reconciliation, reconciled_at from runs where campaign_id = ${opts.campaignId} order by created_at desc limit 20`;
   const uncertain = await sql<Record<string, unknown>[]>`select t.id, c.domain, t.form_url from attempts t join candidates c on c.id = t.candidate_id where t.campaign_id = ${opts.campaignId} and t.status = 'uncertain'`;
-  const o: string[] = ["# Outreach overview", "", `Updated ${utc(new Date())} · campaign **${mdCell(ov.campaign?.name)}** · ${mdCell(ov.campaign?.industry || "industry not set")} · ${mdCell(ov.campaign?.city_region || "city not set")} · ${mdCell(ov.campaign?.country || "country not set")} · live mode **${ov.campaign?.live_enabled ? "ENABLED" : "off"}**`, ""];
+  const o: string[] = ["# Outreach overview", "", `Updated ${utc(new Date())} · campaign **${mdCell(ov.campaign?.name)}** · ${mdCell(ov.campaign?.industry || "industry not set")} · ${mdCell(ov.campaign?.city_region || "any city")} · countries ${mdCell((ov.campaign?.countries?.length ? ov.campaign.countries : [ov.campaign?.country ?? ""]).filter(Boolean).join(" → ") || "not set")} · live mode **${ov.campaign?.live_enabled ? "ENABLED" : "off"}**`, ""];
   o.push("| Metric | Value |", "|---|---|", ...STAT_LABELS.map(([k, l]) => `| ${l} | ${ov.stats[k] ?? 0} |`), "");
   o.push("> “Confirmation observed” = the website showed a new success message after submit. It does not prove delivery, reading or a lead.", "");
   if (uncertain.length) {

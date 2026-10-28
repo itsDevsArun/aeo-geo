@@ -19,6 +19,7 @@ export const ConfigSchema = z.object({
   name: z.string().trim().min(1).max(200).default("Devs Arun AEO/GEO outreach"),
   industry: z.string().trim().max(200).default(""),
   country: z.string().trim().max(3).default(""),
+  countries: z.array(z.string()).default([]),
   city_region: z.string().trim().max(200).default(""),
   search_language: z.string().trim().default("en"),
   search_queries: z.array(z.string()).default([]),
@@ -108,7 +109,7 @@ export async function applyConfig(configDir: string, actor: string): Promise<App
   }
   const id = campaign.id;
   const patch = {
-    name: cfg.name, industry: cfg.industry, country: cfg.country, city_region: cfg.city_region,
+    name: cfg.name, industry: cfg.industry, country: cfg.country || (cfg.countries[0] ?? ""), countries: cfg.countries, city_region: cfg.city_region,
     search_language: cfg.search_language, search_queries: cfg.search_queries, max_candidates: cfg.max_candidates,
     max_live_attempts_per_run: cfg.max_live_attempts_per_run, min_delay_seconds: cfg.min_delay_seconds,
     excluded_domains: cfg.excluded_domains, dry_run_fill_domains: cfg.dry_run_fill_domains,
@@ -224,6 +225,18 @@ export async function applyConfig(configDir: string, actor: string): Promise<App
       } catch (e) {
         problems.push(`${line}: ${describe(e)}`);
       }
+    }
+  }
+
+  // 6b. Replies logged by the owner: an opt-out always suppresses the domain.
+  const respFile = join(configDir, "responses.csv");
+  if (existsSync(respFile)) {
+    for (const r of parseCsv(await readFile(respFile, "utf8"))) {
+      if ((r.response ?? "").toLowerCase() !== "opt_out") continue;
+      const d = normalizeDomainInput(r.domain ?? "");
+      if (!d) continue;
+      const [exists] = await sql`select 1 from suppressions where domain = ${d}`;
+      if (!exists) { await candidates.addSuppression({ domain: d, reason: `Opted out (responses.csv) ${r.notes ?? ""}`.trim() }, actor); notes.push(`Suppressed ${d} (opt-out reply)`); }
     }
   }
 

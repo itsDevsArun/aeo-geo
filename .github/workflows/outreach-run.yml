@@ -35,6 +35,7 @@ concurrency:
 permissions:
   contents: write   # push the outreach-state branch
   actions: read     # detect the outreach-stop workflow
+  issues: write     # live dashboard issue
 
 jobs:
   process:

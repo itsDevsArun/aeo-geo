@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDiscoveryQueries, classifySearchResult } from "@/shared/discovery";
+import { buildDiscoveryQueries, classifySearchResult, hasTargetMarket } from "@/shared/discovery";
 import { normalizeDomainInput, normalizeUrl, registrableDomain, sameSite } from "@/shared/urls";
 
 const opts = { excludedDomains: ["competitor.com"], suppressedDomains: new Set(["optedout.in"]) };
@@ -48,12 +48,24 @@ describe("search result classification", () => {
 describe("query generation", () => {
   it("never invents a target market", () => {
     expect(buildDiscoveryQueries({ industry: "", city_region: "", country: "", search_queries: [] })).toEqual([]);
+    expect(hasTargetMarket({ industry: "any", country: "", countries: ["US"], search_queries: [] })).toBe(false);
+    expect(hasTargetMarket({ industry: "any", country: "", countries: [], search_queries: ["x"] })).toBe(false);
+    expect(hasTargetMarket({ industry: "any", country: "", countries: ["US"], search_queries: ["law firm contact us"] })).toBe(true);
   });
   it("builds queries from the configured market plus custom queries", () => {
-    const q = buildDiscoveryQueries({ industry: "dentists", city_region: "Pune", country: "IN", search_queries: ["dental clinic Pune"] });
+    const q = buildDiscoveryQueries({ industry: "dentists", city_region: "Pune", country: "IN", search_queries: ["dental clinic Pune"] }).map((t) => t.query);
     expect(q[0]).toBe("dental clinic Pune");
     expect(q).toContain("dentists in Pune");
     expect(q).toContain("dentists company Pune India");
     expect(new Set(q).size).toBe(q.length);
+  });
+  it("orders countries by priority: US, then AU, then CA, then worldwide", () => {
+    const t = buildDiscoveryQueries({ industry: "any", city_region: "", country: "", countries: ["us", "AU", "CA", "ALL", "US"], search_queries: ["law firm contact us", "roofing company contact us"] });
+    expect(t.map((x) => `${x.priority}:${x.country}:${x.query}`)).toEqual([
+      "0:US:law firm contact us", "0:US:roofing company contact us",
+      "1:AU:law firm contact us", "1:AU:roofing company contact us",
+      "2:CA:law firm contact us", "2:CA:roofing company contact us",
+      "3:ALL:law firm contact us", "3:ALL:roofing company contact us",
+    ]);
   });
 });

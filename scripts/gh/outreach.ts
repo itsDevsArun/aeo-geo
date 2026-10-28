@@ -33,15 +33,19 @@ const log = (m: string) => console.log(`[outreach ${new Date().toISOString().sli
 
 type Mods = Awaited<ReturnType<typeof load>>;
 async function load() {
-  const [{ db }, state, config, report, runs, migrateMod] = await Promise.all([
+  const [{ db }, state, config, report, runs, migrateMod, live] = await Promise.all([
     import("../../src/server/db"),
     import("./state"),
     import("./config"),
     import("./report"),
     import("../../src/server/services/runs"),
     import("../migrate"),
+    import("./live-dashboard"),
   ]);
-  return { db, state, config, report, runs, migrate: migrateMod.migrate };
+  const publish = live.dashboardPublisher(REPO, process.env.GITHUB_TOKEN, log);
+  const dashboard = async (o: { campaignId: string | null; runId: string | null; problems?: string[]; phase: string }) =>
+    publish(await live.renderDashboard({ ...o, configDir: CONFIG_DIR, repo: REPO }).catch((e) => `Dashboard render failed: ${e}`));
+  return { db, state, config, report, runs, migrate: migrateMod.migrate, dashboard };
 }
 
 /** Serialised checkpoints (export DB -> commit -> push). */
@@ -172,6 +176,7 @@ async function cmdRun(): Promise<number> {
   }
   if (!runId) {
     for (const p of problems) log(`PROBLEM: ${p}`);
+    await m.dashboard({ campaignId: applied.campaignId, runId: null, problems, phase: `${mode} run NOT started` });
     await m.report.writeReports({ stateDir: STATE_DIR, campaignId: applied.campaignId, runId: null, repo: REPO, notes: applied.notes, problems });
     await checkpoint("reports");
     await sql.end();
@@ -207,6 +212,8 @@ async function cmdRun(): Promise<number> {
     for (const e of ev) { console.log(`  · ${e.type}${e.domain ? ` [${e.domain}]` : ""} ${e.message}`); lastEvent = e.id; }
   };
   const evTimer = setInterval(printEvents, 3000);
+  await m.dashboard({ campaignId: applied.campaignId, runId, problems, phase: `${mode} run in progress` });
+  const dashTimer = setInterval(() => void m.dashboard({ campaignId: applied.campaignId, runId, problems, phase: `${mode} run in progress` }), 20_000);
   const cpTimer = setInterval(() => void checkpoint("periodic"), 180_000);
   let stopSent = false;
   const stopTimer = setInterval(async () => {
@@ -217,7 +224,7 @@ async function cmdRun(): Promise<number> {
     }
   }, 30_000);
   const code: number = await new Promise((r) => child.on("exit", (c) => r(c ?? 1)));
-  clearInterval(evTimer); clearInterval(cpTimer); clearInterval(stopTimer);
+  clearInterval(evTimer); clearInterval(cpTimer); clearInterval(stopTimer); clearInterval(dashTimer);
   await printEvents();
   api.server.close();
   log(`runner exited with code ${code}`);
@@ -229,6 +236,7 @@ async function cmdRun(): Promise<number> {
   await finalizeReports(m, applied.campaignId, runId, applied.notes, problems);
   const final = (await m.runs.getRun(runId)).status;
   log(`run ${runId.slice(0, 8)} finished: ${final}`);
+  await m.dashboard({ campaignId: applied.campaignId, runId, problems, phase: `${mode} run finished: ${final}` });
   await sql.end();
   return code === 0 && !["failed", "lost"].includes(final) ? 0 : 1;
 }
@@ -258,6 +266,7 @@ async function cmdFinalize(): Promise<number> {
   const [last] = await sql<{ id: string; campaign_id: string }[]>`select id, campaign_id from runs order by created_at desc limit 1`;
   if (last && (active.length || !existsSync(join(ARTIFACT_DIR, "manifest.json")))) {
     await finalizeReports(m, last.campaign_id, last.id);
+    if (active.length) await m.dashboard({ campaignId: last.campaign_id, runId: last.id, phase: "run cancelled" });
   } else {
     await checkpointer(m)("finalize");
   }

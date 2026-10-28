@@ -37,6 +37,7 @@ function job(mode: string, extra: Record<string, string> = {}, cmd = "run", onSt
       RUNNER_TEST_MODE: "1", RUNNER_TEST_HOST_SUFFIX: ".test", RUNNER_TEST_HOST_RESOLVER_RULES: `MAP *.test 127.0.0.1:${SITES}`,
       RUNNER_HEARTBEAT_MS: "2000", SERVICE_PAGE_URL: "http://devsarun-fixture.test/aeo-geo/",
       GITHUB_STEP_SUMMARY: join(tmp, "summary.md"), GITHUB_TOKEN: "", GITHUB_ACTOR: "owner",
+      OUTREACH_DASHBOARD_FILE: join(tmp, "dashboard.md"),
       ...extra,
     };
     const child = spawn(process.execPath, ["--conditions=react-server", "--import", "tsx", "scripts/gh/outreach.ts", cmd], { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] });
@@ -62,7 +63,7 @@ beforeAll(async () => {
   git(stateDir, "remote", "add", "origin", remote);
   configDir = join(tmp, "outreach");
   cpSync(join(ROOT, "outreach"), configDir, { recursive: true });
-  setConfig({ industry: "plumbers", country: "IN", city_region: "Testville", min_delay_seconds: 5, max_candidates: 20, dry_run_fill_domains: ["acme-plumbing.test", "silent-forms.test"] });
+  setConfig({ industry: "any", countries: ["US", "AU", "CA", "ALL"], country: "", city_region: "", search_queries: ["plumbers contact us"], min_delay_seconds: 5, max_candidates: 20, dry_run_fill_domains: ["acme-plumbing.test", "silent-forms.test"] });
   const d = await createTestDatabase();
   dbUrl = d.url;
   dropDb = d.drop;
@@ -79,10 +80,13 @@ afterAll(async () => {
 describe("GitHub-only mode", () => {
   it("refuses discovery until the target market is configured", async () => {
     const saved = config();
-    setConfig({ industry: "" });
+    setConfig({ countries: [], search_queries: [] });
     const r = await job("discovery");
     expect(r.code, r.out).toBe(1);
-    expect(r.out).toMatch(/Run cannot start.*industry/);
+    expect(r.out).toMatch(/Run cannot start.*Target market not set.*outreach\/campaign.json/);
+    const dash = readFileSync(join(tmp, "dashboard.md"), "utf8");
+    expect(dash).toContain("Action needed");
+    expect(dash).toContain("outreach/campaign.json");
     expect(remoteLog()).toContain("checkpoint");
     writeFileSync(join(configDir, "campaign.json"), JSON.stringify(saved, null, 2));
   }, 120_000);
@@ -91,7 +95,10 @@ describe("GitHub-only mode", () => {
     const r = await job("discovery");
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain("form_detected [acme-plumbing.test]");
+    // Country priority: US first, then Australia, then Canada, then worldwide (no country filter).
+    expect(brave.calls.map((c) => c.country)).toEqual(["us", "us", "au", "ca", ""]);
     const cands = table("candidates");
+    expect(cands.every((c) => c.suitability_notes.includes("Search country: US"))).toBe(true);
     expect(cands.map((c) => c.domain).sort()).toEqual(["acme-plumbing.test", "bright-dental.test", "careers-only.test", "nosolicit-co.test", "quiet-cafe.test", "robots-blocked.test", "silent-forms.test"]);
     expect(cands.every((c) => c.review_status === "pending")).toBe(true);
     const ev = table("evidence").filter((e) => e.object_path);
@@ -105,6 +112,10 @@ describe("GitHub-only mode", () => {
     expect(readFileSync(join(tmp, "summary.md"), "utf8")).toContain("Full report with screenshots");
     expect(git(remote, "ls-tree", "-r", "--name-only", "outreach-state")).toContain("state/db/candidates.json");
     expect(existsSync(join(tmp, "outreach-artifact", "manifest.json"))).toBe(true);
+    const dash = readFileSync(join(tmp, "dashboard.md"), "utf8");
+    expect(dash).toContain("discovery run finished: completed");
+    expect(dash).toMatch(/Websites discovered \| \*\*7\*\*/);
+    expect(dash).toContain("Latest activity");
     expect(sites.submissions.length).toBe(0);
   }, 300_000);
 
@@ -192,6 +203,19 @@ describe("GitHub-only mode", () => {
     expect(again.code).toBe(1);
     expect(again.out).toMatch(/No eligible live targets/);
     expect(sites.submissions.length).toBe(2);
+    let dash = readFileSync(join(tmp, "dashboard.md"), "utf8");
+    expect(dash).toMatch(/Live submissions attempted\*\* \| \*\*2\*\*/);
+    expect(dash).toMatch(/Confirmation observed on the website \| \*\*1\*\*/);
+    expect(dash).toMatch(/Websites approved by you \| 3/);
+    expect(dash).toContain("Latest live submissions");
+
+    // Owner logs replies; opt_out suppresses the domain.
+    writeFileSync(join(configDir, "responses.csv"), "domain,response,date,notes\nacme-plumbing.test,interested,2026-10-29,asked price\nsilent-forms.test,opt_out,2026-10-29,\n");
+    await job("live", { OUTREACH_CONFIRM: "START LIVE" });
+    dash = readFileSync(join(tmp, "dashboard.md"), "utf8");
+    expect(dash).toMatch(/\| interested \| 1 \|/);
+    expect(dash).toMatch(/\| opt out \| 1 \|/);
+    expect(table("suppressions").map((x) => x.domain)).toContain("silent-forms.test");
   }, 300_000);
 
   it("crash recovery: a run left active becomes lost, in-flight submit becomes uncertain, live blocked until reconcile.csv", async () => {
