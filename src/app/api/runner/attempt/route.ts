@@ -1,5 +1,5 @@
 import { json, readJson } from "@/server/http";
-import { runnerRoute } from "@/server/route";
+import { runnerRoute } from "@/server/runner-route";
 import { updateAttempt } from "@/server/services/work";
 import { AttemptUpdateRequest } from "@/shared/runner-api";
 

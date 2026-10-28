@@ -1,51 +1,64 @@
-# Processes ONE dashboard run. Dispatched only by the dashboard (workflow_dispatch API).
+# GitHub-only outreach run. Everything happens inside this one job:
+# a temporary Postgres, the Playwright runner, and the durable state, which is
+# saved to the private `outreach-state` branch (database JSON, screenshots, reports).
+#
+# Start: Actions -> outreach-run -> Run workflow -> choose mode.
+# Graceful stop: Actions -> outreach-stop -> Run workflow.
+# Emergency cancel: "Cancel workflow" on the running job.
 # No schedule, no automatic restarts, no job chaining.
 #
-# Time budget on standard GitHub-hosted runners (hard limit: 6 h = 360 min per job):
-#   setup (checkout, npm ci, Chromium install)  ~5-8 min
-#   processing budget (server-side deadline)      300 min from claim  (PROCESSING_BUDGET_MINUTES)
-#   new-work cutoff before deadline                 8 min             (no new website started after that)
-#   finish + cleanup                               ~2 min
-#   => normal worst case ~310 min; step timeout 330; job timeout 345 (15 min under the hard limit).
-# The runner exits as soon as the eligible queue is empty; it never idles to use up time.
+# Time budget (GitHub-hosted job hard limit: 6 h = 360 min):
+#   setup ~5-8 min + processing budget 300 min (no new website in the last 8 min)
+#   + reports/push ~2 min  =>  ~310 min; job timeout 345 min.
 name: outreach-run
 
 on:
   workflow_dispatch:
     inputs:
-      run_id:
-        description: "Dashboard run ID (UUID)"
+      mode:
+        description: "discovery = find & inspect websites · dry_run = check forms, never submits · live = submit to approved targets"
         required: true
+        type: choice
+        options: [discovery, dry_run, live]
+        default: discovery
+      confirm_live:
+        description: "For live only: type START LIVE"
+        required: false
         type: string
-      campaign_id:
-        description: "Campaign ID (UUID) — used for the concurrency group"
-        required: true
-        type: string
+        default: ""
 
-# One active processing job per campaign (in addition to the database constraint).
+# One job at a time for the whole outreach state (single writer of outreach-state).
 concurrency:
-  group: outreach-campaign-${{ inputs.campaign_id }}
+  group: outreach-state
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write   # push the outreach-state branch
+  actions: read     # detect the outreach-stop workflow
 
 jobs:
   process:
     runs-on: ubuntu-24.04
     timeout-minutes: 345
-    steps:
-      - name: Validate inputs
+    services:
+      postgres:
+        image: postgres:17
         env:
-          RUN_ID: ${{ inputs.run_id }}
-          CAMPAIGN_ID: ${{ inputs.campaign_id }}
-        run: |
-          re='^[0-9a-fA-F-]{36}$'
-          [[ "$RUN_ID" =~ $re && "$CAMPAIGN_ID" =~ $re ]] || { echo "invalid inputs"; exit 1; }
-
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      OUTREACH_EPHEMERAL_DB: "1"
+      STATE_DIR: ${{ github.workspace }}/state
+      OUTREACH_MODE: ${{ inputs.mode }}
+      OUTREACH_CONFIRM: ${{ inputs.confirm_live }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: main
 
       - uses: actions/setup-node@v4
         with:
@@ -58,11 +71,33 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Open state branch
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin outreach-state >/dev/null; then
+            git fetch --depth=1 origin outreach-state:refs/remotes/origin/outreach-state
+            git worktree add -B outreach-state "$STATE_DIR" origin/outreach-state
+          else
+            echo "First run: creating the outreach-state branch"
+            git worktree add --orphan -b outreach-state "$STATE_DIR"
+          fi
+
       - name: Process run
         timeout-minutes: 330
         env:
-          RUN_ID: ${{ inputs.run_id }}
-          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
-          RUNNER_API_SECRET: ${{ secrets.RUNNER_API_SECRET }}
           BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
-        run: npm run runner
+        run: npm run outreach -- run
+
+      - name: Finalize and save state
+        if: always()
+        timeout-minutes: 8
+        run: npm run outreach -- finalize
+
+      - name: Upload evidence (screenshots + CSV)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outreach-evidence
+          path: ${{ github.workspace }}/outreach-artifact/
+          retention-days: 30
+          if-no-files-found: ignore

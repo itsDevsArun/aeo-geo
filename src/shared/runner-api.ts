@@ -101,6 +101,8 @@ export const AttemptUpdateRequest = RunScoped.extend({
   error: z.string().max(2000).optional(),
   fieldValues: z.record(z.string(), z.string().max(3000)).optional(),
   adapterIssue: z.string().max(500).optional(),
+  /** Runner could not durably persist the reservation, so it did NOT click submit. */
+  gateAborted: z.boolean().optional(),
 });
 
 export const EvidenceFailureRequest = RunScoped.extend({

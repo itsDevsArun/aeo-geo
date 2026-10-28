@@ -12,6 +12,6 @@ export default defineConfig({
     environment: "node",
     testTimeout: 30000,
     hookTimeout: 60000,
-    include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts", "tests/github-mode/**/*.test.ts"],
   },
 });

@@ -1,9 +1,11 @@
 name: ci
 
+# Runs on pull requests and on demand only, to save Actions minutes in the private repo.
+# Editing outreach/ files on main does not trigger it.
 on:
-  push:
-    branches: [main]
   pull_request:
+    paths-ignore: ["outreach/**"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,7 +41,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build for e2e (local test values only)
         run: npm run test:e2e:build
-      - name: Browser/UI end-to-end tests (fixture websites only)
+      - name: GitHub-only mode end-to-end (fixture websites only)
+        run: npm run test:github
+      - name: Browser/UI end-to-end tests of the optional hosted dashboard (fixture websites only)
         run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()

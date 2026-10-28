@@ -13,6 +13,7 @@ type InspectItem = Extract<WorkItem, { type: "inspect" }>;
 type AttemptItem = Extract<WorkItem, { type: "dry_run" | "live" }>;
 
 const NAV_TIMEOUT = 30000;
+const requireCheckpoint = () => process.env.RUNNER_REQUIRE_CHECKPOINT === "1";
 
 async function shoot(api: RunnerApi, page: Page, meta: { kind: EvidenceKind; candidateId?: string; attemptId?: string }): Promise<string | null> {
   try {
@@ -197,11 +198,17 @@ export async function processAttempt(g: GuardedContext, api: RunnerApi, item: At
     const before = { text: await visibleText(page), url: page.url() };
     try {
       await api.attempt({ attemptId: item.attemptId, status: "submitting" });
-      gatePassed = true;
     } catch (e) {
       await api.attempt({ attemptId: item.attemptId, status: "failed_before_submit", error: `Submit gate refused: ${e instanceof Error ? e.message : e}` }).catch(() => undefined);
       return "failed_before_submit";
     }
+    // GitHub-only mode: the reservation (status "submitting") must be pushed to the
+    // private state branch BEFORE clicking, so a crash can never lose the record.
+    if (requireCheckpoint() && !(await api.checkpoint(`pre-submit ${item.attemptId}`))) {
+      await api.attempt({ attemptId: item.attemptId, status: "failed_before_submit", gateAborted: true, error: "Could not persist the reservation to the state branch; NOT submitted" }).catch(() => undefined);
+      return "failed_before_submit";
+    }
+    gatePassed = true;
     let clickError: string | null = null;
     try {
       await Promise.all([
@@ -223,6 +230,7 @@ export async function processAttempt(g: GuardedContext, api: RunnerApi, item: At
       confirmationText: result.text ?? undefined,
       error: clickError ? `Submit click error (outcome unknown, not retried): ${clickError}` : result.status === "unclear" ? "No new success marker observed" : undefined,
     });
+    if (requireCheckpoint()) await api.checkpoint(`post-attempt ${item.attemptId}`);
     return result.status;
   } catch (e) {
     const msg = e instanceof Error ? e.message.split("\n")[0].slice(0, 500) : String(e);

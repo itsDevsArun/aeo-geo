@@ -207,7 +207,9 @@ export async function updateAttempt(run: RunRow, raw: z.infer<typeof AttemptUpda
     if (!a || a.run_id !== run.id) throw new HttpError(404, "Attempt not found for this run");
     const rule = ALLOWED_TRANSITIONS[raw.status];
     if (!rule.modes.includes(a.mode)) throw new HttpError(400, `${a.mode} attempts cannot move to ${raw.status}`);
-    if (!rule.from.includes(a.status)) throw new HttpError(409, `Cannot move attempt from ${a.status} to ${raw.status}`);
+    // Special case: the gate opened but the runner could not persist the checkpoint, so it never clicked.
+    const gateAbort = raw.status === "failed_before_submit" && a.status === "submitting" && raw.gateAborted === true;
+    if (!rule.from.includes(a.status) && !gateAbort) throw new HttpError(409, `Cannot move attempt from ${a.status} to ${raw.status}`);
     if (raw.status === "submitting") {
       if (r.status !== "running" && r.status !== "stopping") throw new HttpError(409, "Submit gate closed: run is not active");
       if (r.cancel_requested_at) throw new HttpError(409, "Submit gate closed: run cancelled");

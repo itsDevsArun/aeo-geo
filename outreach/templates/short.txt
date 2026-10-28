@@ -1,0 +1,13 @@
+Subject: Free AI-search visibility check for your business
+Offer-Facts: 
+---
+Hi {{greeting_name}},
+
+I'm {{sender_name}} from {{sender_business}}. I help businesses make their service pages clearer for customers and easier for AI search tools like ChatGPT, Gemini and Google AI Overviews to understand.
+
+Would a free quick AI-search visibility check be useful? Share your website, main service and target customer here and I'll send it by email:
+{{service_link}}
+
+Best,
+{{sender_name}}, {{sender_business}}
+{{sender_email}}
