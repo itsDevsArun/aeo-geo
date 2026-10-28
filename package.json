@@ -1,0 +1,47 @@
+{
+  "name": "devs-arun-outreach",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Devs Arun — AEO/GEO contact-form outreach dashboard and Playwright runner",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "storage:setup": "tsx scripts/setup-storage.ts",
+    "runner": "tsx runner/index.ts",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration --no-file-parallelism",
+    "test:e2e": "playwright test",
+    "test:e2e:build": "NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=anon-test-key next build"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
+    "jszip": "3.10.2",
+    "next": "16.4.3",
+    "playwright": "1.64.1",
+    "postgres": "3.4.9",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "server-only": "0.0.1",
+    "tldts": "7.4.19",
+    "tsx": "4.23.15",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "jose": "6.2.13",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  }
+}
