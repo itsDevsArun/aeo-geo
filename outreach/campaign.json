@@ -1,11 +1,28 @@
 {
   "name": "Devs Arun AEO/GEO outreach",
-  "industry": "",
+  "industry": "any",
   "country": "",
+  "countries": [
+    "US",
+    "AU",
+    "CA",
+    "ALL"
+  ],
   "city_region": "",
   "search_language": "en",
-  "search_queries": [],
-  "max_candidates": 50,
+  "search_queries": [
+    "plumbing company contact us",
+    "roofing contractor contact us",
+    "hvac company contact us",
+    "landscaping company contact us",
+    "cleaning services company contact us",
+    "law firm contact us",
+    "accounting firm contact us",
+    "marketing agency contact us",
+    "interior design studio contact us",
+    "software company contact us"
+  ],
+  "max_candidates": 100,
   "max_live_attempts_per_run": 10,
   "min_delay_seconds": 60,
   "excluded_domains": [],

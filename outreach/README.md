@@ -7,11 +7,31 @@ Sab kuch GitHub par hota hai. Is folder ki files tum GitHub website par hi edit 
 2. Repo → **Settings → Secrets and variables → Actions → New repository secret**
    - Name: `BRAVE_SEARCH_API_KEY`
    - Value: Brave Search API key ([brave.com/search/api](https://brave.com/search/api/)). Iske bina websites apne-aap nahi milengi.
-3. [`campaign.json`](campaign.json) kholo aur ye bharo:
-   - `industry`: jaise `"dental clinics"`
-   - `country`: 2 letter code, jaise `"IN"`
-   - `city_region`: jaise `"Bangalore"`
-   - sender details check karo. Sahi hon toh `"sender_verified": true` karo.
+3. [`campaign.json`](campaign.json) already set hai: **koi bhi industry, worldwide**.
+   - `countries`: `["US","AU","CA","ALL"]`. Pehle US ki saari searches, phir Australia, phir Canada, phir baaki duniya (`ALL`). Order badalna ho toh yahi list badlo.
+   - `search_queries`: kis tarah ke business dhoondhne hain (plumbing, roofing, law firm, wagairah). Add ya hata sakte ho.
+   - `industry: "any"` aur `city_region: ""` matlab koi limit nahi.
+   - Sender details check karo. Sahi hon toh `"sender_verified": true` karo.
+
+## 📊 Live dashboard
+Repo ke **Issues** tab mein **"📊 Outreach Dashboard (live)"** naam ka issue pehle run par apne-aap ban jaata hai. Run chalte waqt ye **har 20 second update** hota hai, aur GitHub mobile app mein bhi dikhta hai. Isme dikhta hai:
+- kitni websites mili, kitni tumne approve/reject ki
+- kitne forms dry run mein pass hue, kitne live submit hue
+- kitno par website ne success message dikhaya, kitne unclear rahe, kitne errors aaye
+- CAPTCHA wale, duplicates jo roke gaye, aur kya reconcile karna baaki hai
+- latest activity aur latest submissions ki list
+- replies ki ginti (neeche dekho)
+
+Issue par 🔔 **Subscribe** kar do, toh update notification bhi aayega.
+
+### Replies (jawab) track karna
+Business ka jawab tumhare email/WhatsApp par aata hai. Tool tumhara inbox nahi padh sakta, isliye [`responses.csv`](responses.csv) mein ek line likh do:
+```
+domain,response,date,notes
+acme.com,interested,2026-11-02,price poocha
+xyz.com.au,opt_out,2026-11-03,mana kiya
+```
+`response` ye ho sakta hai: `replied`, `interested`, `meeting`, `client`, `not_interested`, `opt_out`. `opt_out` likhte hi wo domain hamesha ke liye suppress ho jaata hai.
 
 ## Har baar ka flow
 

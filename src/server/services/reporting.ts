@@ -5,7 +5,7 @@ import { refreshRunHealth, type Run } from "./runs";
 import { ATTEMPT_CSV_COLUMNS, CANDIDATE_CSV_COLUMNS, toCsv } from "@/shared/csv";
 
 export interface Overview {
-  campaign: { id: string; name: string; live_enabled: boolean; industry: string; city_region: string; country: string } | null;
+  campaign: { id: string; name: string; live_enabled: boolean; industry: string; city_region: string; country: string; countries: string[] } | null;
   run: (Pick<Run, "id" | "mode" | "status" | "started_at" | "deadline_at" | "heartbeat_at" | "created_at" | "finished_at" | "finish_reason" | "github_run_url" | "needs_reconciliation"> & {
     elapsed_seconds: number | null;
     heartbeat_age_seconds: number | null;
@@ -19,7 +19,7 @@ export async function getOverview(campaignId: string | null): Promise<Overview> 
   const sql = db();
   if (campaignId) await refreshRunHealth(campaignId);
   const [campaign] = campaignId
-    ? await sql<NonNullable<Overview["campaign"]>[]>`select id, name, live_enabled, industry, city_region, country from campaigns where id = ${campaignId}`
+    ? await sql<NonNullable<Overview["campaign"]>[]>`select id, name, live_enabled, industry, city_region, country, countries from campaigns where id = ${campaignId}`
     : [];
   if (!campaign) return { campaign: null, run: null, stats: {}, serverTime: new Date().toISOString() };
   const [run] = await sql<Run[]>`select * from runs where campaign_id = ${campaignId} order by created_at desc limit 1`;

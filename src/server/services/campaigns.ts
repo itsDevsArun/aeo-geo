@@ -12,6 +12,7 @@ export interface Campaign {
   is_active: boolean;
   industry: string;
   country: string;
+  countries: string[];
   city_region: string;
   search_language: string;
   search_queries: string[];
@@ -57,6 +58,8 @@ export const CampaignPatch = z
     name: z.string().trim().min(1).max(200),
     industry: z.string().trim().max(200),
     country: z.string().trim().toUpperCase().regex(/^([A-Z]{2}|ALL)?$/, "Use a 2-letter country code, e.g. IN or US"),
+    countries: z.array(z.string().trim().toUpperCase().regex(/^([A-Z]{2}|ALL)$/, 'Country codes are 2 letters (e.g. US, AU, CA) or "ALL" for worldwide')).max(20)
+      .transform((a) => [...new Set(a)]),
     city_region: z.string().trim().max(200),
     search_language: z.string().trim().regex(/^[a-z]{2}(-[a-z]{2,4})?$/i).max(10),
     search_queries: z.array(z.string().trim().max(300)).max(50).transform((a) => a.filter(Boolean)),

@@ -52,11 +52,12 @@ async function discoveryWork(run: RunRow, campaign: Campaign, sql: Sql, skipSear
     select count(*)::int as searches from run_events where run_id = ${run.id} and type = 'search_page_processed'`;
   const maxSearches = Number(process.env.MAX_SEARCH_REQUESTS_PER_RUN || 60);
   if (!skipSearch && count < campaign.max_candidates && searches < maxSearches) {
-    const [q] = await sql<{ id: string; query: string; next_offset: number }[]>`
-      select id, query, next_offset from discovery_queries
-      where campaign_id = ${campaign.id} and not exhausted order by created_at, query limit 1`;
+    // Country priority first (e.g. US, then AU, then CA, then worldwide).
+    const [q] = await sql<{ id: string; query: string; next_offset: number; country: string }[]>`
+      select id, query, next_offset, country from discovery_queries
+      where campaign_id = ${campaign.id} and not exhausted order by priority, created_at, query limit 1`;
     if (q) {
-      return { type: "search", queryId: q.id, query: q.query, offset: q.next_offset, country: campaign.country, language: campaign.search_language };
+      return { type: "search", queryId: q.id, query: q.query, offset: q.next_offset, country: q.country || campaign.country, language: campaign.search_language };
     }
   }
   const [c] = await sql<{ id: string; url: string; domain: string }[]>`
@@ -64,7 +65,8 @@ async function discoveryWork(run: RunRow, campaign: Campaign, sql: Sql, skipSear
     where c.campaign_id = ${campaign.id} and c.review_status in ('pending', 'approved') and c.inspection_status = 'not_inspected'
       and not exists (select 1 from suppressions s join business_domains bd on bd.domain = s.domain where bd.business_id = c.business_id)
       and not exists (select 1 from run_events e where e.run_id = ${run.id} and e.candidate_id = c.id and e.type = 'website_selected')
-    order by c.created_at limit 1`;
+    order by coalesce((select dq.priority from discovery_queries dq where dq.campaign_id = c.campaign_id and dq.query = c.discovery_query order by dq.priority limit 1), 999), c.created_at
+    limit 1`;
   if (!c) return { type: "none", reason: "queue_exhausted" };
   await runEvent({ runId: run.id, campaignId: campaign.id, candidateId: c.id, type: "website_selected", message: `Inspecting ${c.domain}` });
   return { type: "inspect", candidateId: c.id, url: c.url, domain: c.domain };

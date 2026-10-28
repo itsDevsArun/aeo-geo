@@ -26,7 +26,9 @@ You (GitHub web)                         GitHub Actions job (temporary)
 | Reconciling uncertain attempts | `outreach/reconcile.csv` |
 | Durable database | `outreach-state` branch, `state/db/*.json` (restored at the start of every job) |
 | Screenshots | `outreach-state` branch, `evidence/` + the `outreach-evidence` artifact on each run (30 days) |
-| "Dashboard" | `outreach-state` branch, `reports/README.md` (overview), `reports/review-queue.md`, `reports/runs/*.md` (each with screenshots), `reports/*.csv`; plus the Job Summary and live log of every run |
+| **Live dashboard** | Issue **"📊 Outreach Dashboard (live)"** (label `outreach-dashboard`), rewritten every 20 s during a run with the funnel: discovered → approved → dry-run passed → submitted → confirmation observed / unclear / errors, plus replies you log in `outreach/responses.csv` |
+| Countries | `outreach/campaign.json` → `countries` in priority order, e.g. `["US","AU","CA","ALL"]` (`ALL` = worldwide) |
+| Reports | `outreach-state` branch, `reports/README.md` (overview), `reports/review-queue.md`, `reports/runs/*.md` (each with screenshots), `reports/*.csv`; plus the Job Summary and live log of every run |
 
 The repository **must be private**: state, contact details and screenshots live in it.
 

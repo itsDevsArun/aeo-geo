@@ -109,7 +109,7 @@ export async function startFixtureSites(port: number): Promise<FixtureSites> {
 
 /** Fake Brave Search API returning fixture URLs (incl. a directory and duplicates). */
 export async function startFakeBrave(port: number, apiKey: string) {
-  const calls: { q: string; offset: number }[] = [];
+  const calls: { q: string; offset: number; country: string }[] = [];
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://x");
     if (req.headers["x-subscription-token"] !== apiKey) {
@@ -118,7 +118,7 @@ export async function startFakeBrave(port: number, apiKey: string) {
     }
     const q = url.searchParams.get("q") ?? "";
     const offset = Number(url.searchParams.get("offset") ?? 0);
-    calls.push({ q, offset });
+    calls.push({ q, offset, country: url.searchParams.get("country") ?? "" });
     const first = calls.filter((c) => c.offset === 0).length === 1 && offset === 0;
     const results = first
       ? [

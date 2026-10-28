@@ -69,20 +69,47 @@ const COUNTRY_NAMES: Record<string, string> = {
   IE: "Ireland", ZA: "South Africa", DE: "Germany", FR: "France",
 };
 
-/** Build discovery queries strictly from the configured target market. */
+export interface DiscoveryTarget {
+  query: string;
+  /** ISO 3166-1 alpha-2, or "ALL" for worldwide. */
+  country: string;
+  /** Lower runs first (country priority order). */
+  priority: number;
+}
+
+/** Ordered target countries: `countries` list if set, else the single `country`. */
+export function targetCountries(c: { country: string; countries?: string[] }): string[] {
+  const list = (c.countries?.length ? c.countries : c.country ? [c.country] : []).map((x) => x.trim().toUpperCase()).filter(Boolean);
+  return [...new Set(list)];
+}
+
+const ANY_INDUSTRY = /^(any|all|\*|any industry)?$/i;
+
+/** True when the owner has given enough to search: queries, or a specific industry (+ optional city). */
+export function hasTargetMarket(c: { industry: string; country: string; countries?: string[]; search_queries: string[] }): boolean {
+  if (targetCountries(c).length === 0) return false;
+  return c.search_queries.some((q) => q.trim()) || !ANY_INDUSTRY.test(c.industry.trim());
+}
+
+/** Build discovery queries strictly from the configured target market (never invented). */
 export function buildDiscoveryQueries(c: {
   industry: string;
   city_region: string;
   country: string;
+  countries?: string[];
   search_queries: string[];
-}): string[] {
+}): DiscoveryTarget[] {
   const custom = c.search_queries.map((q) => q.trim()).filter(Boolean);
-  const industry = c.industry.trim();
+  const industry = ANY_INDUSTRY.test(c.industry.trim()) ? "" : c.industry.trim();
   const city = c.city_region.trim();
-  const out = [...custom];
-  if (industry && city) {
-    const country = COUNTRY_NAMES[c.country.toUpperCase()] ?? c.country;
-    out.push(`${industry} in ${city}`, `${industry} ${city} contact`, `${industry} company ${city} ${country}`.trim());
-  }
-  return [...new Set(out.map((q) => q.replace(/\s+/g, " ").slice(0, 300)))];
+  const out: DiscoveryTarget[] = [];
+  targetCountries(c).forEach((country, priority) => {
+    const name = country === "ALL" ? "" : COUNTRY_NAMES[country] ?? country;
+    const qs = [...custom];
+    if (industry && city) qs.push(`${industry} in ${city}`, `${industry} ${city} contact`, `${industry} company ${city} ${name}`.trim());
+    else if (industry) qs.push(`${industry} ${name} contact us`.replace(/\s+/g, " ").trim(), `${industry} company ${name}`.trim());
+    for (const q of qs) out.push({ query: q.replace(/\s+/g, " ").slice(0, 300), country, priority });
+  });
+  const seen = new Set<string>();
+  return out.filter((t) => (seen.has(`${t.country}|${t.query}`) ? false : (seen.add(`${t.country}|${t.query}`), true)));
 }

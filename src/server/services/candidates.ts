@@ -42,8 +42,8 @@ async function businessForDomain(domain: string, label: string | null, sql: Sql)
 export async function ingestSearchResults(run: RunRow, raw: z.infer<typeof SearchResultsRequest>) {
   return db().begin(async (sql) => {
     const campaign = await getCampaign(run.campaign_id, sql);
-    const [q] = await sql<{ id: string; query: string; next_offset: number }[]>`
-      select id, query, next_offset from discovery_queries where id = ${raw.queryId} and campaign_id = ${campaign.id} for update`;
+    const [q] = await sql<{ id: string; query: string; next_offset: number; country: string }[]>`
+      select id, query, next_offset, country from discovery_queries where id = ${raw.queryId} and campaign_id = ${campaign.id} for update`;
     if (!q) throw new HttpError(404, "Discovery query not found");
     const suppressed = await suppressedDomains(sql);
     const [{ count: existing }] = await sql<{ count: number }[]>`
@@ -77,7 +77,7 @@ export async function ingestSearchResults(run: RunRow, raw: z.infer<typeof Searc
       const [contacted] = await sql<{ id: string }[]>`
         select id from attempts where business_id = ${businessId} and mode = 'live'
         and status not in ('failed_before_submit', 'reconciled_not_sent') limit 1`;
-      const notes = [...c.notes];
+      const notes = [`Search country: ${q.country || campaign.country || "ALL"}`, ...c.notes];
       if (contacted) notes.push(`Business already contacted (attempt ${contacted.id}); it will not be contacted again.`);
       const inserted = await sql`
         insert into candidates (campaign_id, business_id, domain, url, title, snippet, discovery_query, source_url,
