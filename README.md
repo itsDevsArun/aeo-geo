@@ -68,15 +68,15 @@ The job finishes early when the queue is empty.
 
 ## Setup (once)
 1. Keep the repository **private**.
-2. Repo → Settings → Secrets and variables → Actions → add **`BRAVE_SEARCH_API_KEY`** ([Brave Search API](https://brave.com/search/api/); needed for automatic discovery).
+2. *(Optional)* Repo → Settings → Secrets and variables → Actions → add **`BRAVE_SEARCH_API_KEY`** ([Brave Search API](https://brave.com/search/api/), paid). Without it, discovery uses the **free OpenStreetMap Overpass API** (`osm_categories` in `campaign.json`, no key). OSM data © OpenStreetMap contributors, ODbL.
 3. Repo → Settings → Actions → General → Workflow permissions: the workflow requests `contents: write` itself. If your organisation restricts this, allow "Read and write permissions".
 4. Edit `outreach/campaign.json` (industry, country, city), then run `outreach-run` with mode `discovery`.
 
-Secrets used by the workflows: `BRAVE_SEARCH_API_KEY` only. The built-in `GITHUB_TOKEN` pushes the state branch.
+Secrets used by the workflows: `BRAVE_SEARCH_API_KEY` (optional) only. The built-in `GITHUB_TOKEN` pushes the state branch.
 
 ## Costs
 - **GitHub Actions (private repository):** the Free plan includes 2,000 Linux minutes per month. A full 6-hour run uses about 345 minutes; short runs use a few minutes. Pro and Team plans include 3,000.
-- **Brave Search API:** about $5 per 1,000 requests, with roughly $5 of monthly free credit. A card is required.
+- **Discovery:** free with OpenStreetMap (one Overpass request per category and country, cached per run; the public instance asks for under ~10,000 requests/day). Brave Search is optional: about $5 per 1,000 requests, roughly $5 of monthly free credit, card required.
 - **Storage:** screenshots are stored in the repository (JPEG, roughly 50–300 KB each). Retention is set by `evidence_retention_days` (default 180); older files are deleted from the branch, but they stay in git history.
 
 ## Tests

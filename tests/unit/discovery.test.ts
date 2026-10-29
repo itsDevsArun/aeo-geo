@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDiscoveryQueries, classifySearchResult, hasTargetMarket } from "@/shared/discovery";
+import { overpassQuery } from "../../runner/osm";
 import { normalizeDomainInput, normalizeUrl, registrableDomain, sameSite } from "@/shared/urls";
 
 const opts = { excludedDomains: ["competitor.com"], suppressedDomains: new Set(["optedout.in"]) };
@@ -58,6 +59,17 @@ describe("query generation", () => {
     expect(q).toContain("dentists in Pune");
     expect(q).toContain("dentists company Pune India");
     expect(new Set(q).size).toBe(q.length);
+  });
+  it("adds free OSM category queries per country; ALL expands to osm_other_countries", () => {
+    const t = buildDiscoveryQueries({ industry: "any", city_region: "", country: "", countries: ["US", "AU", "ALL"], search_queries: [],
+      osm_categories: ["craft=plumber", "bad tag!"], osm_other_countries: ["GB", "US", "NZ"] });
+    expect(t.map((x) => `${x.priority}:${x.country}:${x.query}`)).toEqual(["0:US:osm:craft=plumber", "1:AU:osm:craft=plumber", "2:GB:osm:craft=plumber", "2:NZ:osm:craft=plumber"]);
+    expect(hasTargetMarket({ industry: "any", country: "", countries: ["US"], search_queries: [], osm_categories: ["office=lawyer"] })).toBe(true);
+  });
+  it("builds a strict Overpass query and rejects injection", () => {
+    expect(overpassQuery("craft=plumber", "US")).toContain('nwr["craft"="plumber"]["website"](area.a)');
+    expect(() => overpassQuery('craft=x"];out;', "US")).toThrow();
+    expect(() => overpassQuery("craft=plumber", "ALL")).toThrow();
   });
   it("orders countries by priority: US, then AU, then CA, then worldwide", () => {
     const t = buildDiscoveryQueries({ industry: "any", city_region: "", country: "", countries: ["us", "AU", "CA", "ALL", "US"], search_queries: ["law firm contact us", "roofing company contact us"] });

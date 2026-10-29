@@ -91,7 +91,11 @@ export const InspectionRequest = RunScoped.extend({
   screenshotEvidenceId: z.string().uuid().optional(),
 });
 
-export const WorkRequest = RunScoped.extend({ skipSearch: z.boolean().optional() });
+export const WorkRequest = RunScoped.extend({
+  skipSearch: z.boolean().optional(),
+  /** Which search providers the runner can use right now. Default: all. */
+  providers: z.array(z.enum(["brave", "osm"])).optional(),
+});
 
 export const AttemptUpdateRequest = RunScoped.extend({
   attemptId: z.string().uuid(),

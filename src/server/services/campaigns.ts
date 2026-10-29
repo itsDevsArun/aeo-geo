@@ -5,6 +5,7 @@ import { db, type Sql } from "../db";
 import { HttpError } from "../http";
 import { DEFAULT_TEMPLATES, validateTemplate, type SenderIdentity } from "@/shared/message";
 import { normalizeDomainInput } from "@/shared/urls";
+import { OSM_TAG } from "@/shared/discovery";
 
 export interface Campaign {
   id: string;
@@ -13,6 +14,8 @@ export interface Campaign {
   industry: string;
   country: string;
   countries: string[];
+  osm_categories: string[];
+  osm_other_countries: string[];
   city_region: string;
   search_language: string;
   search_queries: string[];
@@ -60,6 +63,8 @@ export const CampaignPatch = z
     country: z.string().trim().toUpperCase().regex(/^([A-Z]{2}|ALL)?$/, "Use a 2-letter country code, e.g. IN or US"),
     countries: z.array(z.string().trim().toUpperCase().regex(/^([A-Z]{2}|ALL)$/, 'Country codes are 2 letters (e.g. US, AU, CA) or "ALL" for worldwide')).max(20)
       .transform((a) => [...new Set(a)]),
+    osm_categories: z.array(z.string().trim().regex(OSM_TAG, 'OSM categories look like "craft=plumber" or "office=lawyer"')).max(40).transform((a) => [...new Set(a)]),
+    osm_other_countries: z.array(z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/)).max(40).transform((a) => [...new Set(a)]),
     city_region: z.string().trim().max(200),
     search_language: z.string().trim().regex(/^[a-z]{2}(-[a-z]{2,4})?$/i).max(10),
     search_queries: z.array(z.string().trim().max(300)).max(50).transform((a) => a.filter(Boolean)),
