@@ -8,6 +8,30 @@
     "CA",
     "ALL"
   ],
+  "osm_categories": [
+    "craft=plumber",
+    "craft=roofer",
+    "craft=electrician",
+    "craft=hvac",
+    "craft=gardener",
+    "craft=carpenter",
+    "craft=painter",
+    "office=lawyer",
+    "office=accountant",
+    "office=estate_agent",
+    "office=insurance",
+    "office=architect",
+    "office=it",
+    "office=advertising_agency"
+  ],
+  "osm_other_countries": [
+    "GB",
+    "NZ",
+    "IE",
+    "SG",
+    "ZA",
+    "AE"
+  ],
   "city_region": "",
   "search_language": "en",
   "search_queries": [

@@ -4,12 +4,14 @@ Sab kuch GitHub par hota hai. Is folder ki files tum GitHub website par hi edit 
 
 ## Ek baar ka setup
 1. Repo **private** rehna chahiye (abhi hai).
-2. Repo → **Settings → Secrets and variables → Actions → New repository secret**
-   - Name: `BRAVE_SEARCH_API_KEY`
-   - Value: Brave Search API key ([brave.com/search/api](https://brave.com/search/api/)). Iske bina websites apne-aap nahi milengi.
+2. **Websites dhoondhna FREE hai.** Ye [OpenStreetMap](https://www.openstreetmap.org/) (Overpass API) se hota hai, jismein koi key, card ya account nahi chahiye. `campaign.json` → `osm_categories` mein business types hain, jaise `craft=plumber`, `office=lawyer`. Aur types [OSM wiki](https://wiki.openstreetmap.org/wiki/Map_features) par milenge (`craft=*`, `office=*`).
+   - `ALL` (worldwide) ke liye OSM in countries mein dhoondhta hai: `osm_other_countries` (GB, NZ, IE, SG, ZA, AE). Puri duniya ek saath query karna public server ke liye bahut bhaari hai.
+   - *Optional:* `BRAVE_SEARCH_API_KEY` secret daaloge toh `search_queries` wali web searches bhi chalengi. Brave paid hai (~$5 / 1,000 searches, ~$5 free credit/month, card zaroori). Bina key ke ye searches chupchaap skip ho jaati hain.
 3. [`campaign.json`](campaign.json) already set hai: **koi bhi industry, worldwide**.
    - `countries`: `["US","AU","CA","ALL"]`. Pehle US ki saari searches, phir Australia, phir Canada, phir baaki duniya (`ALL`). Order badalna ho toh yahi list badlo.
-   - `search_queries`: kis tarah ke business dhoondhne hain (plumbing, roofing, law firm, wagairah). Add ya hata sakte ho.
+   - `osm_categories`: free source ke business types. Add ya hata sakte ho.
+   - `search_queries`: sirf tab use hoti hain jab Brave key ho.
+   - `max_candidates`: campaign mein total kitni websites (abhi 100). Zyada chahiye toh badhao.
    - `industry: "any"` aur `city_region: ""` matlab koi limit nahi.
    - Sender details check karo. Sahi hon toh `"sender_verified": true` karo.
 

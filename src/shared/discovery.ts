@@ -85,10 +85,14 @@ export function targetCountries(c: { country: string; countries?: string[] }): s
 
 const ANY_INDUSTRY = /^(any|all|\*|any industry)?$/i;
 
-/** True when the owner has given enough to search: queries, or a specific industry (+ optional city). */
-export function hasTargetMarket(c: { industry: string; country: string; countries?: string[]; search_queries: string[] }): boolean {
+/** OSM tag filter, e.g. "craft=plumber" or "office=lawyer". Strict format: it is placed into an Overpass query. */
+export const OSM_TAG = /^[a-z][a-z0-9_:]{0,40}=[A-Za-z0-9_ .-]{1,60}$/;
+export const OSM_PREFIX = "osm:";
+
+/** True when the owner has given enough to search: queries, OSM categories, or a specific industry. */
+export function hasTargetMarket(c: { industry: string; country: string; countries?: string[]; search_queries: string[]; osm_categories?: string[] }): boolean {
   if (targetCountries(c).length === 0) return false;
-  return c.search_queries.some((q) => q.trim()) || !ANY_INDUSTRY.test(c.industry.trim());
+  return c.search_queries.some((q) => q.trim()) || (c.osm_categories ?? []).some((t) => OSM_TAG.test(t.trim())) || !ANY_INDUSTRY.test(c.industry.trim());
 }
 
 /** Build discovery queries strictly from the configured target market (never invented). */
@@ -98,7 +102,11 @@ export function buildDiscoveryQueries(c: {
   country: string;
   countries?: string[];
   search_queries: string[];
+  osm_categories?: string[];
+  osm_other_countries?: string[];
 }): DiscoveryTarget[] {
+  const osm = (c.osm_categories ?? []).map((t) => t.trim()).filter((t) => OSM_TAG.test(t));
+  const osmOthers = (c.osm_other_countries ?? []).map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z]{2}$/.test(x));
   const custom = c.search_queries.map((q) => q.trim()).filter(Boolean);
   const industry = ANY_INDUSTRY.test(c.industry.trim()) ? "" : c.industry.trim();
   const city = c.city_region.trim();
@@ -109,6 +117,9 @@ export function buildDiscoveryQueries(c: {
     if (industry && city) qs.push(`${industry} in ${city}`, `${industry} ${city} contact`, `${industry} company ${city} ${name}`.trim());
     else if (industry) qs.push(`${industry} ${name} contact us`.replace(/\s+/g, " ").trim(), `${industry} company ${name}`.trim());
     for (const q of qs) out.push({ query: q.replace(/\s+/g, " ").slice(0, 300), country, priority });
+    // Free OSM source: one query per category per country; "ALL" expands to osm_other_countries.
+    const osmCountries = country === "ALL" ? osmOthers.filter((x) => !targetCountries(c).includes(x)) : [country];
+    for (const oc of osmCountries) for (const t of osm) out.push({ query: `${OSM_PREFIX}${t}`, country: oc, priority });
   });
   const seen = new Set<string>();
   return out.filter((t) => (seen.has(`${t.country}|${t.query}`) ? false : (seen.add(`${t.country}|${t.query}`), true)));

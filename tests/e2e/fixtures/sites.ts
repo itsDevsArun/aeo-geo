@@ -63,6 +63,11 @@ const sites: Record<string, Site> = {
     if (req.url === "/contact") return { html: page("Apply", `<h1>Apply for this position</h1><form id="apply" method="post"><label for="n">Name</label><input id="n" name="name" required><label for="e">Email</label><input id="e" type="email" name="email" required><label for="cv">Upload your CV / resume</label><input id="cv" type="file" name="cv" required><label for="m">Cover letter</label><textarea id="m" name="message"></textarea><button type="submit">Apply</button></form>`) };
     return { status: 404, html: "nf" };
   },
+  "osm-plumber.test": (req) => {
+    if (req.url === "/") return { html: page("OSM Plumber Co", `<a href="/contact">Contact</a><h1>OSM Plumber Co</h1>`) };
+    if (req.url === "/contact") return { html: page("Contact", `<h1>Contact us</h1>${standardForm("/contact")}`) };
+    return { status: 404, html: "nf" };
+  },
   "quiet-cafe.test": (req) => {
     if (req.url === "/") return { html: page("Quiet Cafe", `<h1>Quiet Cafe</h1><p>Call us. No online form.</p>`) };
     return { status: 404, html: "nf" };
@@ -141,4 +146,27 @@ export async function startFakeBrave(port: number, apiKey: string) {
   });
   await new Promise<void>((r) => server.listen(port, "127.0.0.1", () => r()));
   return { server, calls, close: () => new Promise<void>((r) => server.close(() => r())) };
+}
+
+/** Fake Overpass API (OpenStreetMap). Records the Overpass QL it receives. */
+export async function startFakeOverpass(port: number) {
+  const queries: string[] = [];
+  const server = createServer(async (req, res) => {
+    let raw = "";
+    for await (const c of req) raw += c;
+    const q = new URLSearchParams(raw).get("data") ?? "";
+    queries.push(q);
+    const elements = /ISO3166-1"="US"/.test(q) && /"craft"="plumber"/.test(q)
+      ? [
+          { type: "node", tags: { name: "OSM Plumber Co", craft: "plumber", website: "http://osm-plumber.test/", "addr:city": "Testville" } },
+          { type: "node", tags: { name: "Acme (dup)", craft: "plumber", "contact:website": "http://www.acme-plumbing.test/" } },
+          { type: "node", tags: { name: "No site", craft: "plumber" } },
+          { type: "node", tags: { name: "FB only", craft: "plumber", website: "https://facebook.com/someplumber" } },
+        ]
+      : [];
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ version: 0.6, elements }));
+  });
+  await new Promise<void>((r) => server.listen(port, "127.0.0.1", () => r()));
+  return { server, queries, close: () => new Promise<void>((r) => server.close(() => r())) };
 }

@@ -20,6 +20,8 @@ export const ConfigSchema = z.object({
   industry: z.string().trim().max(200).default(""),
   country: z.string().trim().max(3).default(""),
   countries: z.array(z.string()).default([]),
+  osm_categories: z.array(z.string()).default([]),
+  osm_other_countries: z.array(z.string()).default(["GB", "NZ", "IE", "SG", "ZA", "AE"]),
   city_region: z.string().trim().max(200).default(""),
   search_language: z.string().trim().default("en"),
   search_queries: z.array(z.string()).default([]),
@@ -109,7 +111,7 @@ export async function applyConfig(configDir: string, actor: string): Promise<App
   }
   const id = campaign.id;
   const patch = {
-    name: cfg.name, industry: cfg.industry, country: cfg.country || (cfg.countries[0] ?? ""), countries: cfg.countries, city_region: cfg.city_region,
+    name: cfg.name, industry: cfg.industry, country: cfg.country || (cfg.countries[0] ?? ""), countries: cfg.countries, osm_categories: cfg.osm_categories, osm_other_countries: cfg.osm_other_countries, city_region: cfg.city_region,
     search_language: cfg.search_language, search_queries: cfg.search_queries, max_candidates: cfg.max_candidates,
     max_live_attempts_per_run: cfg.max_live_attempts_per_run, min_delay_seconds: cfg.min_delay_seconds,
     excluded_domains: cfg.excluded_domains, dry_run_fill_domains: cfg.dry_run_fill_domains,

@@ -5,5 +5,5 @@ import { WorkRequest } from "@/shared/runner-api";
 
 export const POST = runnerRoute(async (req, r) => {
   const body = WorkRequest.parse(await readJson(req));
-  return json(await nextWork(r.run!, { skipSearch: !!body.skipSearch }));
+  return json(await nextWork(r.run!, { skipSearch: !!body.skipSearch, providers: body.providers }));
 });

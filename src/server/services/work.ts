@@ -33,19 +33,21 @@ function deadlinePassed(run: RunRow): boolean {
 }
 
 /** Hand the runner exactly one next unit of work, based only on persisted state. */
-export async function nextWork(run: RunRow, opts: { skipSearch?: boolean } = {}): Promise<WorkItem> {
+export async function nextWork(run: RunRow, opts: { skipSearch?: boolean; providers?: ("brave" | "osm")[] } = {}): Promise<WorkItem> {
   const sql = db();
   const [cur] = await sql<RunRow[]>`select id, campaign_id, mode, status, deadline_at, stop_requested_at, cancel_requested_at, budget_minutes from runs where id = ${run.id}`;
   if (cur.cancel_requested_at || ["cancelled", "lost"].includes(cur.status)) return { type: "stop", reason: "cancel_requested" };
   if (cur.stop_requested_at || cur.status !== "running") return { type: "stop", reason: "stop_requested" };
   if (deadlinePassed(cur)) return { type: "stop", reason: "deadline" };
   const campaign = await getCampaign(cur.campaign_id);
-  if (cur.mode === "discovery") return discoveryWork(cur, campaign, sql, !!opts.skipSearch);
+  if (cur.mode === "discovery") return discoveryWork(cur, campaign, sql, !!opts.skipSearch, opts.providers ?? ["brave", "osm"]);
   if (cur.mode === "dry_run") return dryRunWork(cur, campaign, sql);
   return liveWork(cur, campaign, sql);
 }
 
-async function discoveryWork(run: RunRow, campaign: Campaign, sql: Sql, skipSearch: boolean): Promise<WorkItem> {
+async function discoveryWork(run: RunRow, campaign: Campaign, sql: Sql, skipSearch: boolean, providers: ("brave" | "osm")[]): Promise<WorkItem> {
+  const osmOk = providers.includes("osm");
+  const braveOk = providers.includes("brave");
   const [{ count }] = await sql<{ count: number }[]>`
     select count(*)::int as count from candidates where campaign_id = ${campaign.id} and review_status <> 'filtered'`;
   const [{ searches }] = await sql<{ searches: number }[]>`
@@ -55,7 +57,9 @@ async function discoveryWork(run: RunRow, campaign: Campaign, sql: Sql, skipSear
     // Country priority first (e.g. US, then AU, then CA, then worldwide).
     const [q] = await sql<{ id: string; query: string; next_offset: number; country: string }[]>`
       select id, query, next_offset, country from discovery_queries
-      where campaign_id = ${campaign.id} and not exhausted order by priority, created_at, query limit 1`;
+      where campaign_id = ${campaign.id} and not exhausted
+        and ((${osmOk} and query like 'osm:%') or (${braveOk} and query not like 'osm:%'))
+      order by priority, created_at, query limit 1`;
     if (q) {
       return { type: "search", queryId: q.id, query: q.query, offset: q.next_offset, country: q.country || campaign.country, language: campaign.search_language };
     }

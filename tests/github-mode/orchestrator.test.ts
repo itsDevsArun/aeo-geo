@@ -10,11 +10,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase } from "../helpers/db";
-import { startFakeBrave, startFixtureSites } from "../e2e/fixtures/sites";
+import { startFakeBrave, startFakeOverpass, startFixtureSites } from "../e2e/fixtures/sites";
 
 const ROOT = resolve(__dirname, "..", "..");
 const SITES = 4300;
 const BRAVE = 4400;
+const OVERPASS = 4500;
 const LINK = "https://devsarun.io/aeo-geo/";
 
 let tmp = "";
@@ -25,6 +26,7 @@ let dbUrl = "";
 let dropDb: () => Promise<void>;
 let sites: Awaited<ReturnType<typeof startFixtureSites>>;
 let brave: Awaited<ReturnType<typeof startFakeBrave>>;
+let overpass: Awaited<ReturnType<typeof startFakeOverpass>>;
 
 const git = (dir: string, ...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
 
@@ -34,6 +36,7 @@ function job(mode: string, extra: Record<string, string> = {}, cmd = "run", onSt
       ...process.env,
       DATABASE_URL: dbUrl, OUTREACH_EPHEMERAL_DB: "1", STATE_DIR: stateDir, OUTREACH_CONFIG_DIR: configDir, OUTREACH_MODE: mode,
       BRAVE_SEARCH_API_KEY: "k", BRAVE_API_BASE: `http://127.0.0.1:${BRAVE}/res/v1/web/search`,
+      OVERPASS_API_URL: `http://127.0.0.1:${OVERPASS}/api/interpreter`,
       RUNNER_TEST_MODE: "1", RUNNER_TEST_HOST_SUFFIX: ".test", RUNNER_TEST_HOST_RESOLVER_RULES: `MAP *.test 127.0.0.1:${SITES}`,
       RUNNER_HEARTBEAT_MS: "2000", SERVICE_PAGE_URL: "http://devsarun-fixture.test/aeo-geo/",
       GITHUB_STEP_SUMMARY: join(tmp, "summary.md"), GITHUB_TOKEN: "", GITHUB_ACTOR: "owner",
@@ -69,11 +72,13 @@ beforeAll(async () => {
   dropDb = d.drop;
   sites = await startFixtureSites(SITES);
   brave = await startFakeBrave(BRAVE, "k");
+  overpass = await startFakeOverpass(OVERPASS);
 }, 120_000);
 
 afterAll(async () => {
   await sites?.close();
   await brave?.close();
+  await overpass?.close();
   await dropDb?.();
 });
 
@@ -261,6 +266,22 @@ describe("GitHub-only mode", () => {
     expect(last.status).toBe("cancelled");
     expect(last.finish_reason).toBe("emergency_cancel");
     expect(remoteLog()).toMatch(/checkpoint: (cancelled|final)/);
+    expect(sites.submissions.length).toBe(2);
+  }, 300_000);
+
+  it("free discovery: no Brave key needed, OpenStreetMap categories find official websites", async () => {
+    setConfig({ osm_categories: ["craft=plumber"], min_delay_seconds: 5 });
+    const r = await job("discovery", { BRAVE_SEARCH_API_KEY: "" });
+    expect(r.code, r.out).toBe(0);
+    expect(r.out).toContain("free OpenStreetMap source only");
+    expect(overpass.queries.some((q) => q.includes('"ISO3166-1"="US"') && q.includes('"craft"="plumber"'))).toBe(true);
+    const c = table("candidates").find((x) => x.domain === "osm-plumber.test")!;
+    expect(c).toBeTruthy();
+    expect(c.title).toBe("OSM Plumber Co");
+    expect(c.discovery_query).toBe("osm:craft=plumber");
+    expect(c.review_status).toBe("pending");
+    expect(c.inspection_status).toBe("inspected");
+    expect(table("candidates").some((x) => x.domain === "facebook.com")).toBe(false);
     expect(sites.submissions.length).toBe(2);
   }, 300_000);
 });

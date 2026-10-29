@@ -9,6 +9,8 @@
 import { ApiError, RunnerApi } from "./api";
 import { launchGuarded, visibleText, type GuardedContext } from "./browser";
 import { braveSearch, SearchUnavailable } from "./search";
+import { osmSearch, OsmUnavailable } from "./osm";
+import { USER_AGENT } from "./browser";
 import { inspectCandidate, processAttempt } from "./tasks";
 import { checkOfferFacts } from "../src/shared/message";
 import type { HeartbeatResponse, WorkItem } from "../src/shared/runner-api";
@@ -79,8 +81,10 @@ async function main(): Promise<number> {
       await api.event("offer_verified", "Service page offer facts verified");
     }
 
-    let searchDisabled = !process.env.BRAVE_SEARCH_API_KEY;
-    if (claim.run.mode === "discovery" && searchDisabled) await api.event("error", "BRAVE_SEARCH_API_KEY is not configured; search skipped, inspecting existing candidates only");
+    // Free OpenStreetMap search is always available; Brave only when a key is configured.
+    const providers = new Set<"brave" | "osm">(["osm"]);
+    if (process.env.BRAVE_SEARCH_API_KEY) providers.add("brave");
+    if (claim.run.mode === "discovery" && !providers.has("brave")) await api.event("search_info", "No BRAVE_SEARCH_API_KEY: using the free OpenStreetMap source only");
     let consecutiveErrors = 0;
     let processed = 0;
 
@@ -90,7 +94,7 @@ async function main(): Promise<number> {
       if (Date.now() >= deadline - cutoffMs) { reason = "deadline"; break; }
       let work: WorkItem;
       try {
-        work = await (api.post<WorkItem>("work", { skipSearch: searchDisabled }));
+        work = await (api.post<WorkItem>("work", { skipSearch: providers.size === 0, providers: [...providers] }));
       } catch (e) {
         if (e instanceof ApiError && (e.status === 401 || e.status === 409)) { reason = "server_stop"; break; }
         throw e;
@@ -100,13 +104,16 @@ async function main(): Promise<number> {
       processed++;
       try {
         if (work.type === "search") {
+          const isOsm = work.query.startsWith("osm:");
           try {
-            const page = await braveSearch(work, { apiKey: process.env.BRAVE_SEARCH_API_KEY!, baseUrl: process.env.BRAVE_API_BASE });
+            const page = isOsm
+              ? await osmSearch(work, { baseUrl: process.env.OVERPASS_API_URL, userAgent: USER_AGENT })
+              : await braveSearch(work, { apiKey: process.env.BRAVE_SEARCH_API_KEY!, baseUrl: process.env.BRAVE_API_BASE });
             const r = await api.searchResults({ queryId: work.queryId, offset: work.offset, moreAvailable: page.moreAvailable, results: page.results });
             log(`item ${processed}: search page processed (${r.added} new)`);
           } catch (e) {
-            if (e instanceof SearchUnavailable) {
-              searchDisabled = true;
+            if (e instanceof SearchUnavailable || e instanceof OsmUnavailable) {
+              providers.delete(isOsm ? "osm" : "brave");
               await api.event("error", `Search paused for this run: ${e.message}`);
             } else {
               await api.searchResults({ queryId: work.queryId, offset: work.offset, moreAvailable: false, results: [], error: (e instanceof Error ? e.message : String(e)).slice(0, 400) });

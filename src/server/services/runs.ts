@@ -66,7 +66,7 @@ export async function startRun(campaignId: string, mode: RunMode, actor: string)
   const problems: string[] = [];
   if (mode === "discovery") {
     if (!hasTargetMarket(campaign)) {
-      problems.push('Target market not set: in outreach/campaign.json set "countries" (e.g. ["US","AU","CA","ALL"]) and either "search_queries" or a specific "industry" (or Campaign settings in the optional dashboard).');
+      problems.push('Target market not set: in outreach/campaign.json set "countries" (e.g. ["US","AU","CA","ALL"]) and "osm_categories" (free, e.g. "craft=plumber") or "search_queries" (needs Brave key) or a specific "industry" (or Campaign settings in the optional dashboard).');
     } else if (buildDiscoveryQueries(campaign).length === 0) problems.push("No search queries could be generated.");
   } else {
     if (!campaign.active_template_version_id) problems.push("Select an active message template.");
