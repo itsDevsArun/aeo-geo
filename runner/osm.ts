@@ -36,7 +36,7 @@ export async function osmSearch(
   if (!all) {
     const base = opts.baseUrl || "https://overpass-api.de/api/interpreter";
     for (let attempt = 0; ; attempt++) {
-      const wait = lastCall + 5000 - Date.now(); // polite spacing between requests
+      const wait = lastCall + Number(process.env.OVERPASS_MIN_INTERVAL_MS || 5000) - Date.now(); // polite spacing between requests
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       lastCall = Date.now();
       const res = await fetch(base, {

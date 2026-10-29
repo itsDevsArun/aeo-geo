@@ -36,7 +36,7 @@ function job(mode: string, extra: Record<string, string> = {}, cmd = "run", onSt
       ...process.env,
       DATABASE_URL: dbUrl, OUTREACH_EPHEMERAL_DB: "1", STATE_DIR: stateDir, OUTREACH_CONFIG_DIR: configDir, OUTREACH_MODE: mode,
       BRAVE_SEARCH_API_KEY: "k", BRAVE_API_BASE: `http://127.0.0.1:${BRAVE}/res/v1/web/search`,
-      OVERPASS_API_URL: `http://127.0.0.1:${OVERPASS}/api/interpreter`,
+      OVERPASS_API_URL: `http://127.0.0.1:${OVERPASS}/api/interpreter`, OVERPASS_MIN_INTERVAL_MS: "100",
       RUNNER_TEST_MODE: "1", RUNNER_TEST_HOST_SUFFIX: ".test", RUNNER_TEST_HOST_RESOLVER_RULES: `MAP *.test 127.0.0.1:${SITES}`,
       RUNNER_HEARTBEAT_MS: "2000", SERVICE_PAGE_URL: "http://devsarun-fixture.test/aeo-geo/",
       GITHUB_STEP_SUMMARY: join(tmp, "summary.md"), GITHUB_TOKEN: "", GITHUB_ACTOR: "owner",
@@ -66,7 +66,7 @@ beforeAll(async () => {
   git(stateDir, "remote", "add", "origin", remote);
   configDir = join(tmp, "outreach");
   cpSync(join(ROOT, "outreach"), configDir, { recursive: true });
-  setConfig({ industry: "any", countries: ["US", "AU", "CA", "ALL"], country: "", city_region: "", search_queries: ["plumbers contact us"], min_delay_seconds: 5, max_candidates: 20, dry_run_fill_domains: ["acme-plumbing.test", "silent-forms.test"] });
+  setConfig({ industry: "any", countries: ["US", "AU", "CA", "ALL"], country: "", city_region: "", search_queries: ["plumbers contact us"], osm_categories: [], min_delay_seconds: 5, max_candidates: 20, dry_run_fill_domains: ["acme-plumbing.test", "silent-forms.test"] });
   const d = await createTestDatabase();
   dbUrl = d.url;
   dropDb = d.drop;
