@@ -59,6 +59,7 @@ async function discoveryWork(run: RunRow, campaign: Campaign, sql: Sql, skipSear
       select id, query, next_offset, country from discovery_queries
       where campaign_id = ${campaign.id} and not exhausted
         and ((${osmOk} and query like 'osm:%') or (${braveOk} and query not like 'osm:%'))
+        and not (last_run_id = ${run.id} and last_error is not null)
       order by priority, created_at, query limit 1`;
     if (q) {
       return { type: "search", queryId: q.id, query: q.query, offset: q.next_offset, country: q.country || campaign.country, language: campaign.search_language };

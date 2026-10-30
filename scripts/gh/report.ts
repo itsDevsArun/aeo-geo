@@ -10,6 +10,8 @@ import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { db } from "../../src/server/db";
 import { attemptsCsv, candidatesCsv, getOverview } from "../../src/server/services/reporting";
+import { containsRequiredLink, renderTemplate, validateOutgoingMessage } from "../../src/shared/message";
+import { REQUIRED_LINK } from "../../src/shared/constants";
 
 const STAT_LABELS: [string, string][] = [
   ["discovered", "Websites discovered"], ["pending_review", "Pending review"], ["approved_queue", "Approved live queue"],
@@ -55,6 +57,38 @@ export async function writeReports(opts: {
 
   await writeFile(join(dir, "attempts.csv"), await attemptsCsv({ campaignId: opts.campaignId }));
   await writeFile(join(dir, "candidates.csv"), await candidatesCsv(opts.campaignId));
+
+  // ---- Message preview: exactly what will be typed into forms -----------------
+  {
+    const [camp] = await sql<Record<string, any>[]>`select * from campaigns where id = ${opts.campaignId}`;
+    const vers = await sql<Record<string, any>[]>`select distinct on (t.kind) t.kind, v.id, v.version, v.subject, v.body from template_versions v
+      join message_templates t on t.id = v.template_id where t.campaign_id = ${opts.campaignId} order by t.kind, v.version desc`;
+    const sender = { name: camp.sender_name, business: camp.sender_business, email: camp.sender_email, phone: camp.sender_phone, website: camp.sender_website };
+    const pm: string[] = ["# Message preview", "", "Exactly what the tool types into the message field. Edit `outreach/templates/*.txt` on main to change it.", ""];
+    for (const v of vers) {
+      const active = v.id === camp.active_template_version_id;
+      for (const name of [null, "Acme Plumbing"]) {
+        const r = renderTemplate(v as never, sender, { verifiedBusinessName: name });
+        const check = validateOutgoingMessage(r);
+        pm.push(`## ${v.kind} v${v.version}${active ? " (ACTIVE)" : ""} — ${name ? "with verified business name" : "no verified name"}`, "",
+          `Validation: **${check.ok ? "OK" : "BLOCKED: " + check.errors.join("; ")}** · contains ${REQUIRED_LINK}: **${containsRequiredLink(r.body) ? "yes" : "NO"}** · ${r.body.length} characters`, "",
+          mdBlock(`Subject: ${r.subject}\n\n${r.body}`), "");
+      }
+    }
+    await writeFile(join(dir, "message-preview.md"), pm.join("\n") + "\n");
+  }
+
+  // ---- Ready-to-paste review lines for clean forms ---------------------------
+  {
+    const clean = await sql<Record<string, any>[]>`
+      select c.domain, c.review_status, a.status as adapter_status, cp.final_url
+      from candidates c join form_adapters a on a.candidate_id = c.id
+      left join lateral (select final_url from contact_pages where candidate_id = c.id order by inspected_at desc limit 1) cp on true
+      where c.campaign_id = ${opts.campaignId} and c.review_status = 'pending' and a.status = 'proposed' order by c.created_at`;
+    const lines = ["domain,decision,i_checked_it_is_permitted,adapter,business_name,business_name_verified,notes"];
+    for (const r of clean) lines.push(`${r.domain},approve,yes,approve,,,"contact form ${String(r.final_url ?? "").replace(/"/g, "")}"`);
+    await writeFile(join(dir, "suggested-review.csv"), lines.join("\n") + "\n");
+  }
 
   // ---- Review queue ---------------------------------------------------------
   const queue = await sql<Record<string, unknown>[]>`
@@ -150,7 +184,7 @@ export async function writeReports(opts: {
     for (const u of uncertain) o.push(`- \`${u.id}\` — ${mdCell(u.domain)} — ${mdCell(u.form_url)}`);
     o.push("");
   }
-  o.push("## Links", "", "- [Review queue](review-queue.md)", "- [All attempts CSV](attempts.csv) · [All candidates CSV](candidates.csv)", "");
+  o.push("## Links", "", "- [Message preview — exact text sent](message-preview.md)", "- [Suggested review lines (clean forms only)](suggested-review.csv)", "- [Review queue](review-queue.md)", "- [All attempts CSV](attempts.csv) · [All candidates CSV](candidates.csv)", "");
   o.push("## Recent runs", "", "| Run | Mode | Status | Reason | Requested (UTC) |", "|---|---|---|---|---|");
   for (const r of recent) {
     const n = `${new Date(r.created_at as string).toISOString().slice(0, 10)}_${r.mode}_${String(r.id).slice(0, 8)}`;

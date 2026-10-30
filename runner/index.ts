@@ -10,7 +10,7 @@ import { ApiError, RunnerApi } from "./api";
 import { launchGuarded, visibleText, type GuardedContext } from "./browser";
 import { braveSearch, SearchUnavailable } from "./search";
 import { osmSearch, OsmUnavailable } from "./osm";
-import { USER_AGENT } from "./browser";
+import { API_USER_AGENT } from "./browser";
 import { inspectCandidate, processAttempt } from "./tasks";
 import { checkOfferFacts } from "../src/shared/message";
 import type { HeartbeatResponse, WorkItem } from "../src/shared/runner-api";
@@ -107,7 +107,7 @@ async function main(): Promise<number> {
           const isOsm = work.query.startsWith("osm:");
           try {
             const page = isOsm
-              ? await osmSearch(work, { baseUrl: process.env.OVERPASS_API_URL, userAgent: USER_AGENT })
+              ? await osmSearch(work, { baseUrl: process.env.OVERPASS_API_URL, userAgent: API_USER_AGENT })
               : await braveSearch(work, { apiKey: process.env.BRAVE_SEARCH_API_KEY!, baseUrl: process.env.BRAVE_API_BASE });
             const r = await api.searchResults({ queryId: work.queryId, offset: work.offset, moreAvailable: page.moreAvailable, results: page.results });
             log(`item ${processed}: search page processed (${r.added} new)`);

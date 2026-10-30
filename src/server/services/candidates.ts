@@ -90,13 +90,23 @@ export async function ingestSearchResults(run: RunRow, raw: z.infer<typeof Searc
         remaining--;
       } else stats.duplicates++;
     }
-    const nextOffset = raw.offset + 1;
-    const exhausted = !!raw.error || !raw.moreAvailable || raw.results.length === 0 || nextOffset > MAX_SEARCH_OFFSET;
-    await sql`update discovery_queries set next_offset = ${nextOffset}, exhausted = ${exhausted},
-      results_seen = results_seen + ${raw.results.length}, last_run_id = ${run.id}, last_searched_at = now()
-      where id = ${q.id}`;
-    await runEvent({ runId: run.id, campaignId: campaign.id, type: "search_page_processed",
-      message: `Query "${q.query}" page ${raw.offset + 1}: ${stats.added} new, ${stats.duplicates} duplicate, ${stats.filtered} filtered`,
+    let exhausted: boolean;
+    if (raw.error) {
+      // Keep the query and offset; give up only after 3 failed runs.
+      const [u] = await sql<{ error_count: number }[]>`update discovery_queries set error_count = error_count + 1, last_error = ${raw.error},
+        exhausted = (error_count + 1 >= 3), last_run_id = ${run.id}, last_searched_at = now() where id = ${q.id} returning error_count`;
+      exhausted = u.error_count >= 3;
+    } else {
+      const nextOffset = raw.offset + 1;
+      exhausted = !raw.moreAvailable || raw.results.length === 0 || nextOffset > MAX_SEARCH_OFFSET;
+      await sql`update discovery_queries set next_offset = ${nextOffset}, exhausted = ${exhausted}, error_count = 0, last_error = null,
+        results_seen = results_seen + ${raw.results.length}, last_run_id = ${run.id}, last_searched_at = now()
+        where id = ${q.id}`;
+    }
+    await runEvent({ runId: run.id, campaignId: campaign.id, type: raw.error ? "error" : "search_page_processed",
+      message: raw.error
+        ? `Search failed for "${q.query}" (${q.country || "ALL"}): ${raw.error} — will retry next run`
+        : `Query "${q.query}" (${q.country || "ALL"}) page ${raw.offset + 1}: ${stats.received} results, ${stats.added} new, ${stats.duplicates} duplicate, ${stats.filtered} filtered`,
       data: { ...stats, query: q.query, offset: raw.offset, exhausted, error: raw.error } }, sql);
     if (stats.duplicates) {
       await runEvent({ runId: run.id, campaignId: campaign.id, type: "duplicate_prevented",

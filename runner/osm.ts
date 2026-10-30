@@ -34,14 +34,15 @@ export async function osmSearch(
   const key = `${tag}|${q.country}`;
   let all = cache.get(key);
   if (!all) {
-    const base = opts.baseUrl || "https://overpass-api.de/api/interpreter";
+    const mirrors = opts.baseUrl ? [opts.baseUrl] : ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
     for (let attempt = 0; ; attempt++) {
+      const base = mirrors[attempt % mirrors.length];
       const wait = lastCall + Number(process.env.OVERPASS_MIN_INTERVAL_MS || 5000) - Date.now(); // polite spacing between requests
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       lastCall = Date.now();
       const res = await fetch(base, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": opts.userAgent },
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": opts.userAgent, Accept: "application/json" },
         body: new URLSearchParams({ data: overpassQuery(tag, q.country) }),
         signal: AbortSignal.timeout(200_000),
       }).catch((e) => ({ ok: false, status: 0, err: e }) as const);
@@ -50,8 +51,19 @@ export async function osmSearch(
         await new Promise((r) => setTimeout(r, 30_000 * (attempt + 1)));
         continue;
       }
-      if (!res.ok) throw new Error(`Overpass API error ${res.status}`);
-      const data = (await res.json()) as { elements?: { tags?: Record<string, string> }[]; remark?: string };
+      if (!res.ok) throw new Error(`Overpass API rejected the request (HTTP ${res.status})`);
+      const text = await res.text();
+      if (!text.trimStart().startsWith("{")) {
+        if (attempt >= 3) throw new OsmUnavailable("Overpass API returned a non-JSON page; try again later");
+        await new Promise((r) => setTimeout(r, 15_000));
+        continue;
+      }
+      const data = JSON.parse(text) as { elements?: { tags?: Record<string, string> }[]; remark?: string };
+      if (data.remark && /rate_limited|too many/i.test(data.remark)) {
+        if (attempt >= 3) throw new OsmUnavailable("Overpass rate limit reached; try again later");
+        await new Promise((r) => setTimeout(r, 60_000));
+        continue;
+      }
       if (data.remark && /runtime error|timed out|out of memory/i.test(data.remark)) {
         throw new Error(`Overpass query too large for ${tag} in ${q.country}: use a narrower category`);
       }
