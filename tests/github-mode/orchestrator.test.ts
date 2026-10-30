@@ -271,6 +271,12 @@ describe("GitHub-only mode", () => {
 
   it("free discovery: no Brave key needed, OpenStreetMap categories find official websites", async () => {
     setConfig({ osm_categories: ["craft=plumber"], min_delay_seconds: 5 });
+    // First attempt: the server rejects the request. The query must NOT be marked finished.
+    overpass.failNext.count = 100;
+    const failed = await job("discovery", { BRAVE_SEARCH_API_KEY: "" });
+    expect(failed.out).toMatch(/Search failed for "osm:craft=plumber" \(US\).*will retry next run/);
+    expect(table("discovery_queries").find((q) => q.query === "osm:craft=plumber" && q.country === "US")!.exhausted).toBe(false);
+    overpass.failNext.count = 0;
     const r = await job("discovery", { BRAVE_SEARCH_API_KEY: "" });
     expect(r.code, r.out).toBe(0);
     expect(r.out).toContain("free OpenStreetMap source only");
@@ -282,6 +288,10 @@ describe("GitHub-only mode", () => {
     expect(c.review_status).toBe("pending");
     expect(c.inspection_status).toBe("inspected");
     expect(table("candidates").some((x) => x.domain === "facebook.com")).toBe(false);
+    const preview = readFileSync(join(stateDir, "reports", "message-preview.md"), "utf8");
+    expect(preview).toContain(`contains ${LINK}: **yes**`);
+    expect(preview).toContain("(ACTIVE)");
+    expect(readFileSync(join(stateDir, "reports", "suggested-review.csv"), "utf8")).toContain("osm-plumber.test,approve,yes,approve");
     expect(sites.submissions.length).toBe(2);
   }, 300_000);
 });

@@ -151,10 +151,21 @@ export async function startFakeBrave(port: number, apiKey: string) {
 /** Fake Overpass API (OpenStreetMap). Records the Overpass QL it receives. */
 export async function startFakeOverpass(port: number) {
   const queries: string[] = [];
+  const failNext = { count: 0 };
   const server = createServer(async (req, res) => {
     let raw = "";
     for await (const c of req) raw += c;
     const q = new URLSearchParams(raw).get("data") ?? "";
+    // Like the real server: browser-like user agents get HTTP 406.
+    if (/Mozilla/.test(String(req.headers["user-agent"] ?? ""))) {
+      res.writeHead(406, { "Content-Type": "text/html" });
+      return res.end("<html><title>406 Not Acceptable</title></html>");
+    }
+    if (failNext.count > 0) {
+      failNext.count--;
+      res.writeHead(406, { "Content-Type": "text/html" });
+      return res.end("<html>406</html>");
+    }
     queries.push(q);
     const elements = /ISO3166-1"="US"/.test(q) && /"craft"="plumber"/.test(q)
       ? [
@@ -168,5 +179,5 @@ export async function startFakeOverpass(port: number) {
     res.end(JSON.stringify({ version: 0.6, elements }));
   });
   await new Promise<void>((r) => server.listen(port, "127.0.0.1", () => r()));
-  return { server, queries, close: () => new Promise<void>((r) => server.close(() => r())) };
+  return { server, queries, failNext, close: () => new Promise<void>((r) => server.close(() => r())) };
 }
