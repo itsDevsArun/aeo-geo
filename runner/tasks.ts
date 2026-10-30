@@ -218,10 +218,15 @@ export async function processAttempt(g: GuardedContext, api: RunnerApi, item: At
     } catch (e) {
       clickError = e instanceof Error ? e.message.split("\n")[0] : String(e);
     }
+    // AJAX forms ("Sending...") answer after a delay: poll up to 25 s for a new success/error marker.
     await settle(page, 8000);
-    await page.waitForTimeout(2000);
-    const after = { text: await visibleText(page), url: page.url() };
-    const result = clickError ? { status: "error_after_submit" as const, text: null } : detectConfirmation(before, after);
+    let after = { text: await visibleText(page), url: page.url() };
+    let result: ReturnType<typeof detectConfirmation> = clickError ? { status: "error_after_submit", text: null } : detectConfirmation(before, after);
+    for (let waited = 0; !clickError && result.status === "unclear" && waited < 25_000; waited += 1000) {
+      await page.waitForTimeout(1000);
+      after = { text: await visibleText(page), url: page.url() };
+      result = detectConfirmation(before, after);
+    }
     await shoot(api, page, { kind: "post_attempt", ...meta });
     await api.attempt({
       attemptId: item.attemptId,
