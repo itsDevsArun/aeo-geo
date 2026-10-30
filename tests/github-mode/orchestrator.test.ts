@@ -66,7 +66,8 @@ beforeAll(async () => {
   git(stateDir, "remote", "add", "origin", remote);
   configDir = join(tmp, "outreach");
   cpSync(join(ROOT, "outreach"), configDir, { recursive: true });
-  setConfig({ industry: "any", countries: ["US", "AU", "CA", "ALL"], country: "", city_region: "", search_queries: ["plumbers contact us"], osm_categories: [], min_delay_seconds: 5, max_candidates: 20, dry_run_fill_domains: ["acme-plumbing.test", "silent-forms.test"] });
+  setConfig({ industry: "any", countries: ["US", "AU", "CA", "ALL"], country: "", city_region: "", search_queries: ["plumbers contact us"], osm_categories: [], min_delay_seconds: 5,
+    allow_live: false, sender_verified: false, auto_approve: false, active_template: "short", max_candidates: 20, dry_run_fill_domains: ["acme-plumbing.test", "silent-forms.test"] });
   const d = await createTestDatabase();
   dbUrl = d.url;
   dropDb = d.drop;
@@ -118,7 +119,8 @@ describe("GitHub-only mode", () => {
     expect(git(remote, "ls-tree", "-r", "--name-only", "outreach-state")).toContain("state/db/candidates.json");
     expect(existsSync(join(tmp, "outreach-artifact", "manifest.json"))).toBe(true);
     const dash = readFileSync(join(tmp, "dashboard.md"), "utf8");
-    expect(dash).toContain("discovery run finished: completed");
+    expect(dash).toContain("discovery run finished");
+    expect(dash).toMatch(/\| discovery \| completed/);
     expect(dash).toMatch(/Websites discovered \| \*\*7\*\*/);
     expect(dash).toContain("Latest activity");
     expect(sites.submissions.length).toBe(0);
@@ -254,7 +256,7 @@ describe("GitHub-only mode", () => {
     setConfig({ min_delay_seconds: 60 });
     let pid = 0;
     const p = job("dry_run", {}, "run", (x) => (pid = x));
-    for (let i = 0; i < 60 && !/checkpoint: run created/.test(remoteLog()); i++) await new Promise((res) => setTimeout(res, 1000));
+    for (let i = 0; i < 60 && !/checkpoint: (dry_run )?run created/.test(remoteLog()); i++) await new Promise((res) => setTimeout(res, 1000));
     await new Promise((res) => setTimeout(res, 8000));
     process.kill(pid, "SIGINT");
     const killed = await p;
@@ -294,6 +296,27 @@ describe("GitHub-only mode", () => {
     expect(readFileSync(join(stateDir, "reports", "suggested-review.csv"), "utf8")).toContain("osm-plumber.test,approve,yes,approve");
     expect(sites.submissions.length).toBe(2);
   }, 300_000);
+
+  it("one click (mode=auto): discover, auto-approve clean forms, dry run, submit, dashboard with screenshots", async () => {
+    setConfig({ auto_approve: true, allow_live: true, sender_verified: true, active_template: "standard", min_delay_seconds: 5 });
+    const r = await job("auto", { BRAVE_SEARCH_API_KEY: "" });
+    expect(r.code, r.out).toBe(0);
+    expect(r.out).toMatch(/auto-approved [1-9]\d* candidate/);
+    expect(r.out).toMatch(/discovery run .* finished/);
+    expect(r.out).toMatch(/dry_run run .* finished/);
+    expect(r.out).toMatch(/live run .* finished: completed/);
+    // The newly found clean form was submitted; nothing blocked or already contacted was.
+    expect(sites.submissions.map((s) => s.host).sort(), r.out).toEqual(["acme-plumbing.test", "osm-plumber.test", "silent-forms.test"]);
+    const sent = sites.submissions.find((s) => s.host === "osm-plumber.test")!;
+    expect(sent.body["your-message"]).toContain(LINK);
+    expect(sent.body["your-message"]).not.toMatch(/\bfree\b/i);
+    const dash = readFileSync(join(tmp, "dashboard.md"), "utf8");
+    expect(dash).toContain("auto run finished");
+    expect(dash).toContain("## This job");
+    expect(dash).toMatch(/osm-plumber\.test/);
+    expect(dash).toMatch(/<img src="[^"]+post_attempt[^"]+\?raw=true"/);
+    expect(table("candidates").find((c) => c.domain === "nosolicit-co.test")!.review_status).toBe("pending");
+  }, 400_000);
 });
 
 function readdirScreens(): number {

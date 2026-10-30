@@ -46,8 +46,9 @@ export async function ingestSearchResults(run: RunRow, raw: z.infer<typeof Searc
       select id, query, next_offset, country from discovery_queries where id = ${raw.queryId} and campaign_id = ${campaign.id} for update`;
     if (!q) throw new HttpError(404, "Discovery query not found");
     const suppressed = await suppressedDomains(sql);
+    // max_candidates = new websites per discovery run (so every run finds fresh ones).
     const [{ count: existing }] = await sql<{ count: number }[]>`
-      select count(*)::int as count from candidates where campaign_id = ${campaign.id} and review_status <> 'filtered'`;
+      select count(*)::int as count from candidates where campaign_id = ${campaign.id} and discovered_run_id = ${run.id}`;
     let remaining = Math.max(0, campaign.max_candidates - existing);
     const stats = { received: raw.results.length, added: 0, duplicates: 0, filtered: 0, filteredReasons: {} as Record<string, number>, capped: 0 };
     const seenThisPage = new Set<string>();

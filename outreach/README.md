@@ -35,7 +35,23 @@ xyz.com.au,opt_out,2026-11-03,mana kiya
 ```
 `response` ye ho sakta hai: `replied`, `interested`, `meeting`, `client`, `not_interested`, `opt_out`. `opt_out` likhte hi wo domain hamesha ke liye suppress ho jaata hai.
 
-## Har baar ka flow
+## ⚡ Ek click mein sab (roz yahi karna hai)
+1. **Actions → outreach-run → Run workflow → mode `auto` → Run workflow**. Mode default `auto` hi hai.
+2. Bas. Ek hi job mein ye sab hota hai:
+   1. **Websites dhoondhna (free OpenStreetMap):** order US → Australia → Canada → baaki. Har country mein pehle trades (plumber, roofer, HVAC, electrician, landscaping, painter, carpenter, builder, movers), phir professional firms (lawyer, accountant, real estate, insurance, architect, financial advisor, IT, advertising).
+   2. **Har website ka contact form check karna.** CAPTCHA, "no solicitation", job/booking forms, consent box, ya anjaan zaroori field (address, budget, wagairah) ho toh wo site **skip** hoti hai aur review queue mein rehti hai.
+   3. **Jo form har check pass kare, wo apne-aap approve** (`auto_approve: true`).
+   4. **Dry run:** form dobara check hota hai, submit nahi hota.
+   5. **Live submit:** ek run mein max `max_live_attempts_per_run` (abhi 10). Har business ko zindagi mein sirf ek baar.
+3. Job khatam hone par **Issues → "📊 Outreach Dashboard (live)"** kholo. Wahan ye sab milega:
+   - is job ke phases
+   - kitni sites mili, kitne submit hue, kitne confirm hue
+   - har submit ka **filled form aur after-submit screenshot**
+4. Exact message text: `outreach-state` branch → `reports/message-preview.md`.
+
+**Band karna ho toh:** `campaign.json` mein `"allow_live": false` karo, toh sirf dhoondhna aur check karna hoga, submit nahi. Ya `"auto_approve": false` karo, toh har site tum `review.csv` se approve karoge.
+
+## Manual flow (optional, agar khud control chahiye)
 
 ### 1. Websites dhoondo (discovery)
 1. **Actions → outreach-run → Run workflow** par jao, mode `discovery` chuno, phir **Run workflow** dabao.

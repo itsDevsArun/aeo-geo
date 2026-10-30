@@ -63,7 +63,7 @@ describe("query generation", () => {
   it("adds free OSM category queries per country; ALL expands to osm_other_countries", () => {
     const t = buildDiscoveryQueries({ industry: "any", city_region: "", country: "", countries: ["US", "AU", "ALL"], search_queries: [],
       osm_categories: ["craft=plumber", "bad tag!"], osm_other_countries: ["GB", "US", "NZ"] });
-    expect(t.map((x) => `${x.priority}:${x.country}:${x.query}`)).toEqual(["0:US:osm:craft=plumber", "1:AU:osm:craft=plumber", "2:GB:osm:craft=plumber", "2:NZ:osm:craft=plumber"]);
+    expect(t.map((x) => `${x.priority}:${x.country}:${x.query}`)).toEqual(["0:US:osm:craft=plumber", "1000:AU:osm:craft=plumber", "2000:GB:osm:craft=plumber", "2001:NZ:osm:craft=plumber"]);
     expect(hasTargetMarket({ industry: "any", country: "", countries: ["US"], search_queries: [], osm_categories: ["office=lawyer"] })).toBe(true);
   });
   it("builds a strict Overpass query and rejects injection", () => {
@@ -71,13 +71,18 @@ describe("query generation", () => {
     expect(() => overpassQuery('craft=x"];out;', "US")).toThrow();
     expect(() => overpassQuery("craft=plumber", "ALL")).toThrow();
   });
+  it("keeps the owner's category order inside each country (trades first, then professional firms)", () => {
+    const t = buildDiscoveryQueries({ industry: "any", city_region: "", country: "", countries: ["US", "AU"], search_queries: [], osm_categories: ["craft=plumber", "craft=roofer", "office=lawyer"] });
+    expect(t.sort((a, b) => a.priority - b.priority).map((x) => `${x.country}:${x.query}`)).toEqual([
+      "US:osm:craft=plumber", "US:osm:craft=roofer", "US:osm:office=lawyer", "AU:osm:craft=plumber", "AU:osm:craft=roofer", "AU:osm:office=lawyer"]);
+  });
   it("orders countries by priority: US, then AU, then CA, then worldwide", () => {
     const t = buildDiscoveryQueries({ industry: "any", city_region: "", country: "", countries: ["us", "AU", "CA", "ALL", "US"], search_queries: ["law firm contact us", "roofing company contact us"] });
     expect(t.map((x) => `${x.priority}:${x.country}:${x.query}`)).toEqual([
-      "0:US:law firm contact us", "0:US:roofing company contact us",
-      "1:AU:law firm contact us", "1:AU:roofing company contact us",
-      "2:CA:law firm contact us", "2:CA:roofing company contact us",
-      "3:ALL:law firm contact us", "3:ALL:roofing company contact us",
+      "0:US:law firm contact us", "1:US:roofing company contact us",
+      "1000:AU:law firm contact us", "1001:AU:roofing company contact us",
+      "2000:CA:law firm contact us", "2001:CA:roofing company contact us",
+      "3000:ALL:law firm contact us", "3001:ALL:roofing company contact us",
     ]);
   });
 });

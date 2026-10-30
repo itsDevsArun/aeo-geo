@@ -49,7 +49,7 @@ async function discoveryWork(run: RunRow, campaign: Campaign, sql: Sql, skipSear
   const osmOk = providers.includes("osm");
   const braveOk = providers.includes("brave");
   const [{ count }] = await sql<{ count: number }[]>`
-    select count(*)::int as count from candidates where campaign_id = ${campaign.id} and review_status <> 'filtered'`;
+    select count(*)::int as count from candidates where campaign_id = ${campaign.id} and discovered_run_id = ${run.id}`;
   const [{ searches }] = await sql<{ searches: number }[]>`
     select count(*)::int as searches from run_events where run_id = ${run.id} and type = 'search_page_processed'`;
   const maxSearches = Number(process.env.MAX_SEARCH_REQUESTS_PER_RUN || 60);
@@ -70,7 +70,7 @@ async function discoveryWork(run: RunRow, campaign: Campaign, sql: Sql, skipSear
     where c.campaign_id = ${campaign.id} and c.review_status in ('pending', 'approved') and c.inspection_status = 'not_inspected'
       and not exists (select 1 from suppressions s join business_domains bd on bd.domain = s.domain where bd.business_id = c.business_id)
       and not exists (select 1 from run_events e where e.run_id = ${run.id} and e.candidate_id = c.id and e.type = 'website_selected')
-    order by coalesce((select dq.priority from discovery_queries dq where dq.campaign_id = c.campaign_id and dq.query = c.discovery_query order by dq.priority limit 1), 999), c.created_at
+    order by coalesce((select min(dq.priority) from discovery_queries dq where dq.campaign_id = c.campaign_id and dq.query = c.discovery_query), 999999), c.created_at
     limit 1`;
   if (!c) return { type: "none", reason: "queue_exhausted" };
   await runEvent({ runId: run.id, campaignId: campaign.id, candidateId: c.id, type: "website_selected", message: `Inspecting ${c.domain}` });
@@ -88,8 +88,11 @@ async function dryRunWork(run: RunRow, campaign: Campaign, sql: Sql): Promise<Wo
     join form_adapters a on a.candidate_id = c.id
     where c.campaign_id = ${campaign.id} and c.review_status = 'approved' and a.status in ('proposed', 'approved')
       and not exists (select 1 from attempts t where t.run_id = ${run.id} and t.candidate_id = c.id)
+      and (${process.env.OUTREACH_DRY_RUN_NEW_ONLY !== "1"} or (
+        not (a.status = 'approved' and a.test_status = 'passed')
+        and not exists (select 1 from attempts t where t.business_id = c.business_id and t.mode = 'live' and t.status not in ('failed_before_submit', 'reconciled_not_sent'))))
       and not exists (select 1 from suppressions s join business_domains bd on bd.domain = s.domain where bd.business_id = c.business_id)
-    order by c.reviewed_at nulls last limit 1`;
+    order by coalesce((select min(dq.priority) from discovery_queries dq where dq.campaign_id = c.campaign_id and dq.query = c.discovery_query), 999999), c.reviewed_at nulls last limit 1`;
   if (!t) return { type: "none", reason: "queue_exhausted" };
   return createAttemptWork(run, campaign, t, "dry_run", sql);
 }
@@ -108,7 +111,7 @@ async function liveWork(run: RunRow, campaign: Campaign, sql: Sql): Promise<Work
         and not exists (select 1 from attempts t where t.business_id = c.business_id and t.mode = 'live'
                         and t.status not in ('failed_before_submit', 'reconciled_not_sent'))
         and not exists (select 1 from suppressions s join business_domains bd on bd.domain = s.domain where bd.business_id = c.business_id)
-      order by a.approved_at limit 1`;
+      order by coalesce((select min(dq.priority) from discovery_queries dq where dq.campaign_id = c.campaign_id and dq.query = c.discovery_query), 999999), a.approved_at limit 1`;
     if (!t) return { type: "none", reason: "queue_exhausted" };
     const item = await reserveLiveAttempt(run, campaign, t);
     if (item) return item;

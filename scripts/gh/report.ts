@@ -44,6 +44,7 @@ export async function writeReports(opts: {
   stateDir: string;
   campaignId: string;
   runId: string | null;
+  jobRunIds?: string[];
   repo?: string;
   notes?: string[];
   problems?: string[];
@@ -123,20 +124,21 @@ export async function writeReports(opts: {
 
   // ---- This run -------------------------------------------------------------
   let runReport: string | null = null;
-  if (opts.runId) {
-    const [run] = await sql<Record<string, unknown>[]>`select * from runs where id = ${opts.runId}`;
+  const allEvidence: unknown[] = [];
+  for (const runId of (opts.jobRunIds?.length ? opts.jobRunIds : opts.runId ? [opts.runId] : []) as string[]) {
+    const [run] = await sql<Record<string, unknown>[]>`select * from runs where id = ${runId}`;
     const attempts = await sql<Record<string, unknown>[]>`
       select t.*, c.domain, c.url as website, v.version as tv, mt.kind as tk from attempts t
       join candidates c on c.id = t.candidate_id join template_versions v on v.id = t.template_version_id
-      join message_templates mt on mt.id = v.template_id where t.run_id = ${opts.runId} order by t.reserved_at`;
+      join message_templates mt on mt.id = v.template_id where t.run_id = ${runId} order by t.reserved_at`;
     const evidence = await sql<{ attempt_id: string | null; candidate_id: string | null; kind: string; object_path: string | null; filename: string; capture_error: string | null }[]>`
-      select attempt_id, candidate_id, kind, object_path, filename, capture_error from evidence where run_id = ${opts.runId} and deleted_at is null order by created_at`;
+      select attempt_id, candidate_id, kind, object_path, filename, capture_error from evidence where run_id = ${runId} and deleted_at is null order by created_at`;
     const events = await sql<Record<string, unknown>[]>`
       select e.created_at, e.type, e.message, c.domain from run_events e left join candidates c on c.id = e.candidate_id
-      where e.run_id = ${opts.runId} order by e.id`;
-    const name = `${String(new Date(run.created_at as string).toISOString()).slice(0, 10)}_${String(run.mode)}_${opts.runId.slice(0, 8)}`;
-    const md: string[] = [`# Run ${opts.runId.slice(0, 8)} — ${mdCell(run.mode)} — ${mdCell(run.status)}`, ""];
-    md.push(`| | |`, `|---|---|`, `| Run ID | \`${opts.runId}\` |`, `| Requested by | ${mdCell(run.requested_by)} |`);
+      where e.run_id = ${runId} order by e.id`;
+    const name = `${String(new Date(run.created_at as string).toISOString()).slice(0, 10)}_${String(run.mode)}_${runId.slice(0, 8)}`;
+    const md: string[] = [`# Run ${runId.slice(0, 8)} — ${mdCell(run.mode)} — ${mdCell(run.status)}`, ""];
+    md.push(`| | |`, `|---|---|`, `| Run ID | \`${runId}\` |`, `| Requested by | ${mdCell(run.requested_by)} |`);
     md.push(`| Started | ${utc(run.started_at)} |`, `| Finished | ${utc(run.finished_at)} |`, `| Finish reason | ${mdCell(run.finish_reason)} |`);
     if (run.error) md.push(`| Error | ${mdCell(run.error, 500)} |`);
     if (run.github_run_url) md.push(`| GitHub Actions | ${mdCell(run.github_run_url)} |`);
@@ -162,14 +164,15 @@ export async function writeReports(opts: {
     md.push(`## Events (${events.length})`, "", "| Time (UTC) | Event | Website | Details |", "|---|---|---|---|");
     for (const e of events) md.push(`| ${utc(e.created_at).slice(11, 19)} | ${mdCell(e.type)} | ${mdCell(e.domain)} | ${mdCell(e.message, 300)} |`);
     await writeFile(join(dir, "runs", `${name}.md`), md.join("\n") + "\n");
-    await writeFile(join(dir, "runs", `${name}.csv`), await attemptsCsv({ campaignId: opts.campaignId, runId: opts.runId }));
+    await writeFile(join(dir, "runs", `${name}.csv`), await attemptsCsv({ campaignId: opts.campaignId, runId: runId }));
     runReport = `reports/runs/${name}.md`;
 
     if (opts.artifactDir) {
       await mkdir(join(opts.artifactDir, "screenshots"), { recursive: true });
-      await writeFile(join(opts.artifactDir, `run-${opts.runId.slice(0, 8)}_attempts.csv`), await attemptsCsv({ campaignId: opts.campaignId, runId: opts.runId }));
+      await writeFile(join(opts.artifactDir, `run-${runId.slice(0, 8)}_attempts.csv`), await attemptsCsv({ campaignId: opts.campaignId, runId: runId }));
       for (const e of evidence) if (e.object_path) await copyFile(join(opts.stateDir, "evidence", e.object_path), join(opts.artifactDir, "screenshots", basename(e.object_path))).catch(() => undefined);
-      await writeFile(join(opts.artifactDir, "manifest.json"), JSON.stringify({ run: { id: opts.runId, mode: run.mode, status: run.status }, evidence }, null, 2));
+      allEvidence.push({ run: { id: runId, mode: run.mode, status: run.status }, evidence });
+      await writeFile(join(opts.artifactDir, "manifest.json"), JSON.stringify(allEvidence, null, 2));
     }
   }
 

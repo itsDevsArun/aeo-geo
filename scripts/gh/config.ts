@@ -33,6 +33,7 @@ export const ConfigSchema = z.object({
   suppressed_domains: z.array(z.string()).default([]),
   related_domains: z.array(z.tuple([z.string(), z.string()])).default([]),
   allow_live: z.boolean().default(false),
+  auto_approve: z.boolean().default(false),
   sender: z.object({ name: z.string(), business: z.string(), email: z.string(), phone: z.string(), website: z.string() }),
   sender_verified: z.boolean().default(false),
   active_template: z.enum(["short", "standard"]).default("short"),
@@ -271,4 +272,9 @@ export async function applyConfig(configDir: string, actor: string): Promise<App
     notes.push(`Run ${r.id.slice(0, 8)} reconciled (no uncertain attempts)`);
   }
   return { campaignId: id, notes, problems };
+}
+
+export async function readAutoSettings(configDir: string): Promise<{ auto_approve: boolean; allow_live: boolean }> {
+  const cfg = ConfigSchema.parse(JSON.parse(await readFile(join(configDir, "campaign.json"), "utf8")));
+  return { auto_approve: cfg.auto_approve, allow_live: cfg.allow_live };
 }

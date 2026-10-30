@@ -1,16 +1,18 @@
-Subject: Free AI-search visibility check for your business
+Subject: Helping customers find your business in AI search (AEO + GEO)
 Offer-Facts: $199; 16,999; negotiable
 ---
 Hi {{greeting_name}},
 
-I'm {{sender_name}} from {{sender_business}}. I help businesses make their service pages clearer for customers and easier for AI search tools like ChatGPT, Gemini, Perplexity and Google AI Overviews to understand.
+I'm {{sender_name}} from {{sender_business}}. More and more customers now ask ChatGPT, Gemini, Perplexity or Google's AI Overviews questions like "who should I hire for this in my area?" before they call anyone. These tools answer from websites they can clearly understand, and they tend to recommend businesses whose pages answer real customer questions.
 
-Would a free quick AI-search visibility check be useful for your business? Share your website, main service and target customer here and I'll send it by email:
+That is what AEO + GEO (Answer Engine and Generative Engine Optimization) is for. I improve your existing service pages so they clearly answer the questions your customers ask, add structured data that matches the page, and make the call, quote or enquiry step obvious. The benefit: your business gets a better chance of being mentioned or linked in AI answers, and visitors who arrive find it easy to contact you.
+
+The AEO + GEO Starter is a one-time $199 (about ₹16,999, negotiable) for one website: a basic audit, 10 customer questions, improvements to two existing pages, relevant structured data and an action plan, with one revision round.
+
+You can read the full details, send an enquiry or book online here:
 {{service_link}}
 
-If it makes sense afterwards, my one-time AEO + GEO Starter ($199, about ₹16,999, negotiable) covers one website: a basic audit, 10 customer questions, improvements to two existing pages, relevant structured data, and a summary action plan with one revision round.
-
-If this isn't relevant, just let me know and I won't contact you again.
+If this isn't relevant, just reply and I won't contact you again.
 
 Best,
 {{sender_name}}

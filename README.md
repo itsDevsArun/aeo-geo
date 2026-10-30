@@ -33,7 +33,8 @@ You (GitHub web)                         GitHub Actions job (temporary)
 The repository **must be private**: state, contact details and screenshots live in it.
 
 ### Controls
-- **Start:** Actions → `outreach-run` → Run workflow, then choose `discovery`, `dry_run` or `live`. Live also needs `START LIVE` typed in the box.
+- **Start (one click):** Actions → `outreach-run` → Run workflow with mode **`auto`** (default). In one job it discovers websites, auto-approves forms that pass every automatic check (`auto_approve` in `campaign.json`), dry-runs them, then submits up to `max_live_attempts_per_run` (only if `allow_live` is true). The dashboard issue shows each submission with screenshots.
+- **Single steps:** modes `discovery`, `dry_run` or `live`. Live also needs `START LIVE` typed in the box.
 - **Graceful stop:** Actions → `outreach-stop` → Run workflow. The running job checks every 30 s, finishes the current website, then stops.
 - **Emergency cancel:** "Cancel workflow" on the running job. The submit gate is closed in the database first. Any in-flight live attempt becomes `uncertain` and must be reconciled before the next live run.
 - **Next run:** start it again manually. It continues from the saved state, and businesses already contacted are never contacted again.

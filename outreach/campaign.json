@@ -11,16 +11,19 @@
   "osm_categories": [
     "craft=plumber",
     "craft=roofer",
-    "craft=electrician",
     "craft=hvac",
+    "craft=electrician",
     "craft=gardener",
-    "craft=carpenter",
     "craft=painter",
+    "craft=carpenter",
+    "craft=builder",
+    "office=moving_company",
     "office=lawyer",
     "office=accountant",
     "office=estate_agent",
     "office=insurance",
     "office=architect",
+    "office=financial_advisor",
     "office=it",
     "office=advertising_agency"
   ],
@@ -48,12 +51,12 @@
   ],
   "max_candidates": 100,
   "max_live_attempts_per_run": 10,
-  "min_delay_seconds": 60,
+  "min_delay_seconds": 20,
   "excluded_domains": [],
   "dry_run_fill_domains": [],
   "suppressed_domains": [],
   "related_domains": [],
-  "allow_live": false,
+  "allow_live": true,
   "sender": {
     "name": "Arun",
     "business": "Devs Arun",
@@ -61,7 +64,8 @@
     "phone": "+91 76673 11203",
     "website": "https://devsarun.io/aeo-geo/"
   },
-  "sender_verified": false,
-  "active_template": "short",
-  "evidence_retention_days": 180
+  "sender_verified": true,
+  "active_template": "standard",
+  "evidence_retention_days": 180,
+  "auto_approve": true
 }

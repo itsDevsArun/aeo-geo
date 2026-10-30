@@ -16,13 +16,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "discovery = find & inspect websites · dry_run = check forms, never submits · live = submit to approved targets"
+        description: "auto = everything in one go (find, check, submit) · discovery / dry_run / live = single steps"
         required: true
         type: choice
-        options: [discovery, dry_run, live]
-        default: discovery
+        options: [auto, discovery, dry_run, live]
+        default: auto
       confirm_live:
-        description: "For live only: type START LIVE"
+        description: "Only for mode=live: type START LIVE (not needed for auto)"
         required: false
         type: string
         default: ""

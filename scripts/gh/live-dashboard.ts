@@ -35,7 +35,7 @@ export async function readResponses(configDir: string): Promise<{ counts: Record
 const utc = (d: unknown) => (d ? new Date(d as string).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "—");
 const dur = (s: number) => `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
 
-export async function renderDashboard(opts: { campaignId: string | null; runId: string | null; configDir: string; repo?: string; problems?: string[]; phase: string }): Promise<string> {
+export async function renderDashboard(opts: { campaignId: string | null; runId: string | null; jobRunIds?: string[]; configDir: string; repo?: string; problems?: string[]; phase: string }): Promise<string> {
   const repo = opts.repo ?? "";
   const gh = (p: string) => (repo ? `https://github.com/${repo}/${p}` : p);
   const out: string[] = [`# 📊 Outreach Dashboard`, "", `**${mdCell(opts.phase)}** · updated ${utc(new Date())}`, ""];
@@ -62,6 +62,41 @@ export async function renderDashboard(opts: { campaignId: string | null; runId: 
     if (run.finish_reason) out.push(`| Finish reason | ${mdCell(run.finish_reason)} |`);
     if (run.github_run_url) out.push(`| Live log | ${mdCell(run.github_run_url)} |`);
     out.push("");
+  }
+
+  // ---- This job: every phase + every live submission with screenshots -------------
+  const jobIds = opts.jobRunIds?.length ? opts.jobRunIds : opts.runId ? [opts.runId] : [];
+  if (jobIds.length) {
+    const phases = await sql<Record<string, any>[]>`
+      select r.id, r.mode, r.status, r.finish_reason, r.started_at, r.finished_at,
+        (select count(*)::int from candidates c where c.discovered_run_id = r.id) as found,
+        (select count(*)::int from run_events e where e.run_id = r.id and e.type in ('form_detected','mapping_required','review_required') and e.attempt_id is null) as inspected,
+        (select count(*)::int from attempts t where t.run_id = r.id and t.status = 'dry_run_ok') as dry_ok,
+        (select count(*)::int from attempts t where t.run_id = r.id and t.mode = 'live' and t.submit_started_at is not null and t.status <> 'failed_before_submit') as submitted,
+        (select count(*)::int from attempts t where t.run_id = r.id and t.status = 'confirmed') as confirmed
+      from runs r where r.id in ${sql(jobIds)} order by r.created_at`;
+    out.push("## This job", "", "| Phase | Status | Found | Forms checked | Dry run OK | Submitted | Confirmed |", "|---|---|---|---|---|---|---|");
+    for (const p of phases) out.push(`| ${mdCell(p.mode)} | ${mdCell(p.status)}${p.finish_reason ? ` (${mdCell(p.finish_reason)})` : ""} | ${p.found} | ${p.inspected} | ${p.dry_ok} | **${p.submitted}** | **${p.confirmed}** |`);
+    out.push("");
+    const subs = await sql<Record<string, any>[]>`
+      select t.id, t.status, t.form_url, t.confirmation_text, t.submit_started_at, c.domain,
+        (select e.object_path from evidence e where e.attempt_id = t.id and e.kind = 'post_attempt' and e.object_path is not null order by e.created_at desc limit 1) as after_shot,
+        (select e.object_path from evidence e where e.attempt_id = t.id and e.kind = 'filled' and e.object_path is not null order by e.created_at desc limit 1) as filled_shot
+      from attempts t join candidates c on c.id = t.candidate_id
+      where t.run_id in ${sql(jobIds)} and t.mode = 'live' and t.submit_started_at is not null and t.status <> 'failed_before_submit'
+      order by t.submit_started_at limit 40`;
+    if (subs.length) {
+      out.push(`## Submitted in this job (${subs.length})`, "");
+      const raw = (p: string) => gh(`blob/outreach-state/evidence/${p.split("/").map(encodeURIComponent).join("/")}?raw=true`);
+      for (const a of subs) {
+        out.push(`### ${a.status === "confirmed" ? "🎉" : a.status === "unclear" ? "❓" : "⚠"} ${mdCell(a.domain)} — ${mdCell(a.status)}`, "");
+        out.push(`${utc(a.submit_started_at)} · form: ${mdCell(a.form_url, 200)}`);
+        if (a.confirmation_text) out.push("", `Website said: “${mdCell(a.confirmation_text, 220)}”`);
+        out.push("");
+        const imgs = [a.filled_shot ? `<img src="${raw(a.filled_shot)}" width="360" alt="filled form">` : "", a.after_shot ? `<img src="${raw(a.after_shot)}" width="360" alt="after submit">` : ""].filter(Boolean);
+        if (imgs.length) out.push(`Filled form · after submit<br>${imgs.join(" ")}`, "");
+      }
+    }
   }
 
   const [r] = await sql<Record<string, number>[]>`
