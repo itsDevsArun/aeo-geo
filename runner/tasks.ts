@@ -106,7 +106,9 @@ export async function inspectCandidate(g: GuardedContext, api: RunnerApi, item: 
       screenshotEvidenceId: shotId ?? undefined,
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message.split("\n")[0].slice(0, 500) : String(e);
+    let msg = e instanceof Error ? e.message.split("\n")[0].slice(0, 500) : String(e);
+    if (/ERR_BLOCKED_BY_CLIENT|ERR_NAME_NOT_RESOLVED/.test(msg) && g.blockedRequests.includes("DNS lookup failed")) msg = "Website not reachable: the domain no longer resolves (dead or old website)";
+    else if (/ERR_CERT_/.test(msg)) msg = "Website has a broken HTTPS certificate";
     await api.inspection({ ...base, status: "error", error: msg }).catch(() => undefined);
   } finally {
     await page.close().catch(() => undefined);

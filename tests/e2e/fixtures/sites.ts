@@ -63,8 +63,12 @@ const sites: Record<string, Site> = {
     if (req.url === "/contact") return { html: page("Apply", `<h1>Apply for this position</h1><form id="apply" method="post"><label for="n">Name</label><input id="n" name="name" required><label for="e">Email</label><input id="e" type="email" name="email" required><label for="cv">Upload your CV / resume</label><input id="cv" type="file" name="cv" required><label for="m">Cover letter</label><textarea id="m" name="message"></textarea><button type="submit">Apply</button></form>`) };
     return { status: 404, html: "nf" };
   },
-  "osm-plumber.test": (req) => {
+  "osm-plumber.test": (req, body, record) => {
     if (req.url === "/") return { html: page("OSM Plumber Co", `<a href="/contact">Contact</a><h1>OSM Plumber Co</h1>`) };
+    if (req.url === "/contact" && req.method === "POST") {
+      record({ host: "osm-plumber.test", path: "/contact", body });
+      return { html: page("Sent", `<h1>Thanks for getting in touch!</h1>`) };
+    }
     if (req.url === "/contact") return { html: page("Contact", `<h1>Contact us</h1>${standardForm("/contact")}`) };
     return { status: 404, html: "nf" };
   },

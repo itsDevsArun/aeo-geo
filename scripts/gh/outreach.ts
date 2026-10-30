@@ -42,10 +42,11 @@ async function load() {
     import("../migrate"),
     import("./live-dashboard"),
   ]);
+  const auto = await import("./auto");
   const publish = live.dashboardPublisher(REPO, process.env.GITHUB_TOKEN, log);
-  const dashboard = async (o: { campaignId: string | null; runId: string | null; problems?: string[]; phase: string }) =>
+  const dashboard = async (o: { campaignId: string | null; runId: string | null; jobRunIds?: string[]; problems?: string[]; phase: string }) =>
     publish(await live.renderDashboard({ ...o, configDir: CONFIG_DIR, repo: REPO }).catch((e) => `Dashboard render failed: ${e}`));
-  return { db, state, config, report, runs, migrate: migrateMod.migrate, dashboard };
+  return { db, state, config, report, runs, migrate: migrateMod.migrate, dashboard, auto };
 }
 
 /** Serialised checkpoints (export DB -> commit -> push). */
@@ -143,9 +144,11 @@ async function purgeRetention(m: Mods, campaignId: string) {
   log(`retention: removed ${rows.length} expired screenshot(s)`);
 }
 
+type Mode = "discovery" | "dry_run" | "live";
+
 async function cmdRun(): Promise<number> {
-  const mode = (process.env.OUTREACH_MODE || "discovery") as "discovery" | "dry_run" | "live";
-  if (!["discovery", "dry_run", "live"].includes(mode)) throw new Error(`Invalid OUTREACH_MODE ${mode}`);
+  const requested = process.env.OUTREACH_MODE || "auto";
+  if (!["auto", "discovery", "dry_run", "live"].includes(requested)) throw new Error(`Invalid OUTREACH_MODE ${requested}`);
   const m = await load();
   const sql = m.db();
   await mkdir(ARTIFACT_DIR, { recursive: true });
@@ -155,94 +158,144 @@ async function cmdRun(): Promise<number> {
   for (const n of applied.notes) log(`config: ${n}`);
   for (const p of applied.problems) log(`CONFIG PROBLEM: ${p}`);
   await purgeRetention(m, applied.campaignId);
-
+  const campaignId = applied.campaignId;
   const problems = [...applied.problems];
-  let runId: string | null = null;
-  if (mode === "live" && process.env.OUTREACH_CONFIRM !== "START LIVE") {
-    problems.push('Live run refused: type START LIVE in the "confirm_live" box when starting the workflow.');
-  } else {
-    try {
-      runId = (await m.runs.startRun(applied.campaignId, mode, ACTOR)).id;
-      log(`${mode} run ${runId} created`);
-    } catch (e) {
-      const d = (e as { details?: unknown }).details;
-      problems.push(`Run cannot start: ${e instanceof Error ? e.message : e}${Array.isArray(d) ? ` — ${d.join("; ")}` : ""}`);
-    }
-  }
-  if (!(await checkpoint("run created"))) {
-    problems.push("Could not save state to the outreach-state branch (check workflow permissions: contents: write). Nothing was processed.");
-    if (runId) await sql`update runs set status = 'failed', finished_at = now(), finish_reason = 'state_save_failed' where id = ${runId}`;
-    runId = null;
-  }
-  if (!runId) {
-    for (const p of problems) log(`PROBLEM: ${p}`);
-    await m.dashboard({ campaignId: applied.campaignId, runId: null, problems, phase: `${mode} run NOT started` });
-    await m.report.writeReports({ stateDir: STATE_DIR, campaignId: applied.campaignId, runId: null, repo: REPO, notes: applied.notes, problems });
-    await checkpoint("reports");
-    await sql.end();
-    return 1;
-  }
-  const api = await startRunnerApi(checkpoint);
-  const started = new Date();
-  const child: ChildProcess = spawn(process.execPath, ["--import", "tsx", join(ROOT, "runner", "index.ts")], {
-    cwd: ROOT,
-    env: { ...process.env, DASHBOARD_URL: api.url, RUN_ID: runId, RUNNER_REQUIRE_CHECKPOINT: mode === "live" ? "1" : "0" },
-    stdio: ["ignore", "inherit", "inherit"],
-  });
+  const notes = [...applied.notes];
+  const jobRunIds: string[] = [];
+  const jobStart = Date.now();
+  const JOB_BUDGET_MIN = Number(process.env.PROCESSING_BUDGET_MINUTES || 300);
+  let current: string | null = null;
+  let halted = false; // stop or cancel requested: no further phases
+  let exitCode = 0;
+  const phaseLabel = () => (requested === "auto" ? "auto run" : `${requested} run`);
+  const dash = (phase: string) => m.dashboard({ campaignId, runId: current, jobRunIds, problems, phase });
+
   // GitHub "Cancel workflow" = emergency cancel: close the submit gate in the DB first, then stop the runner.
+  let child: ChildProcess | null = null;
   let cancelling = false;
   const forward = (sig: NodeJS.Signals) => async () => {
-    if (!cancelling) {
+    halted = true;
+    if (!cancelling && current) {
       cancelling = true;
       log(`received ${sig}: emergency cancel`);
-      await m.runs.emergencyCancel(runId!, `${ACTOR} (GitHub job cancelled)`).catch((e) => log(`cancel: ${e.message}`));
+      await m.runs.emergencyCancel(current, `${ACTOR} (GitHub job cancelled)`).catch((e) => log(`cancel: ${e.message}`));
       await checkpoint("cancelled");
     }
-    child.kill(sig);
+    child?.kill(sig);
   };
   process.on("SIGINT", forward("SIGINT"));
   process.on("SIGTERM", forward("SIGTERM"));
+  const api = await startRunnerApi(checkpoint);
 
-  // Live log of persisted events (the Actions log is the live monitor).
-  let lastEvent = 0;
-  const printEvents = async () => {
-    const ev = await sql<{ id: number; type: string; message: string; domain: string | null }[]>`
-      select e.id, e.type, e.message, c.domain from run_events e left join candidates c on c.id = e.candidate_id
-      where e.run_id = ${runId} and e.id > ${lastEvent} order by e.id`.catch(() => []);
-    for (const e of ev) { console.log(`  · ${e.type}${e.domain ? ` [${e.domain}]` : ""} ${e.message}`); lastEvent = e.id; }
-  };
-  const evTimer = setInterval(printEvents, 3000);
-  await m.dashboard({ campaignId: applied.campaignId, runId, problems, phase: `${mode} run in progress` });
-  const dashTimer = setInterval(() => void m.dashboard({ campaignId: applied.campaignId, runId, problems, phase: `${mode} run in progress` }), 20_000);
-  const cpTimer = setInterval(() => void checkpoint("periodic"), 180_000);
-  let stopSent = false;
-  const stopTimer = setInterval(async () => {
-    if (!stopSent && (await stopRequestedOnGitHub(started))) {
-      stopSent = true;
-      log("graceful stop requested via outreach-stop workflow");
-      await m.runs.requestStop(runId!, `${ACTOR} (outreach-stop workflow)`).catch((e) => log(`stop failed: ${e.message}`));
+  /** Run one phase (one dashboard run). Returns false if it could not start. */
+  const runPhase = async (mode: Mode, maxMinutes: number, optional: boolean): Promise<boolean> => {
+    const remaining = Math.floor(JOB_BUDGET_MIN - (Date.now() - jobStart) / 60000);
+    const budget = Math.min(maxMinutes, remaining);
+    if (budget < 10) { notes.push(`${mode}: skipped, job time budget used up`); return false; }
+    process.env.PROCESSING_BUDGET_MINUTES = String(budget);
+    let runId: string;
+    try {
+      runId = (await m.runs.startRun(campaignId, mode, ACTOR)).id;
+    } catch (e) {
+      const d = (e as { details?: unknown }).details;
+      const msg = `Run cannot start (${mode}): ${Array.isArray(d) ? d.join("; ") : e instanceof Error ? e.message : e}`;
+      (optional ? notes : problems).push(msg);
+      log(optional ? `skip ${msg}` : `PROBLEM: ${msg}`);
+      if (!optional) exitCode = 1;
+      return false;
     }
-  }, 30_000);
-  const code: number = await new Promise((r) => child.on("exit", (c) => r(c ?? 1)));
-  clearInterval(evTimer); clearInterval(cpTimer); clearInterval(stopTimer); clearInterval(dashTimer);
-  await printEvents();
-  api.server.close();
-  log(`runner exited with code ${code}`);
-  const run = await m.runs.getRun(runId);
-  if (["queued", "running", "stopping"].includes(run.status)) {
-    await m.runs.markLost(runId, `${ACTOR} (runner exited without finishing)`);
-    log("runner did not finish the run; marked lost (in-flight live attempts -> uncertain)");
+    if (!(await checkpoint(`${mode} run created`))) {
+      problems.push("Could not save state to the outreach-state branch (check workflow permissions: contents: write). Nothing was processed.");
+      await sql`update runs set status = 'failed', finished_at = now(), finish_reason = 'state_save_failed' where id = ${runId}`;
+      exitCode = 1;
+      halted = true;
+      return false;
+    }
+    current = runId;
+    jobRunIds.push(runId);
+    log(`${mode} run ${runId} started (budget ${budget} min)`);
+    const started = new Date();
+    child = spawn(process.execPath, ["--import", "tsx", join(ROOT, "runner", "index.ts")], {
+      cwd: ROOT,
+      env: { ...process.env, DASHBOARD_URL: api.url, RUN_ID: runId, RUNNER_REQUIRE_CHECKPOINT: mode === "live" ? "1" : "0" },
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+    let lastEvent = 0;
+    const printEvents = async () => {
+      const ev = await sql<{ id: number; type: string; message: string; domain: string | null }[]>`
+        select e.id, e.type, e.message, c.domain from run_events e left join candidates c on c.id = e.candidate_id
+        where e.run_id = ${runId} and e.id > ${lastEvent} order by e.id`.catch(() => []);
+      for (const e of ev) { console.log(`  · ${e.type}${e.domain ? ` [${e.domain}]` : ""} ${e.message}`); lastEvent = e.id; }
+    };
+    const evTimer = setInterval(printEvents, 3000);
+    await dash(`${phaseLabel()} in progress: ${mode}`);
+    const dashTimer = setInterval(() => void dash(`${phaseLabel()} in progress: ${mode}`), 20_000);
+    const cpTimer = setInterval(() => void checkpoint("periodic"), 180_000);
+    let stopSent = false;
+    const stopTimer = setInterval(async () => {
+      if (!stopSent && (await stopRequestedOnGitHub(started))) {
+        stopSent = true;
+        halted = true;
+        log("graceful stop requested via outreach-stop workflow");
+        await m.runs.requestStop(runId, `${ACTOR} (outreach-stop workflow)`).catch((e) => log(`stop failed: ${e.message}`));
+      }
+    }, 30_000);
+    const code: number = await new Promise((r) => child!.on("exit", (c) => r(c ?? 1)));
+    clearInterval(evTimer); clearInterval(cpTimer); clearInterval(stopTimer); clearInterval(dashTimer);
+    await printEvents();
+    const run = await m.runs.getRun(runId);
+    if (["queued", "running", "stopping"].includes(run.status)) {
+      await m.runs.markLost(runId, `${ACTOR} (runner exited without finishing)`);
+      log("runner did not finish the run; marked lost (in-flight live attempts -> uncertain)");
+    }
+    const final = await m.runs.getRun(runId);
+    log(`${mode} run ${runId.slice(0, 8)} finished: ${final.status} (${final.finish_reason})`);
+    if (code !== 0 || ["failed", "lost"].includes(final.status)) exitCode = 1;
+    if (["stopped", "cancelled"].includes(final.status)) halted = true;
+    await checkpoint(`${mode} run finished`);
+    return true;
+  };
+
+  if (requested === "live" && process.env.OUTREACH_CONFIRM !== "START LIVE") {
+    problems.push('Live run refused: type START LIVE in the "confirm_live" box when starting the workflow (or use mode "auto").');
+    exitCode = 1;
+  } else if (requested !== "auto") {
+    await runPhase(requested as Mode, JOB_BUDGET_MIN, false);
+  } else {
+    // One click: discover -> auto-approve clean forms -> dry run -> auto-approve tested adapters -> live.
+    const cfg = await m.config.readAutoSettings(CONFIG_DIR);
+    await runPhase("discovery", 150, false);
+    if (!halted) {
+      if (cfg.auto_approve) {
+        const n = await m.auto.approveCleanCandidates(campaignId, `${ACTOR} (auto_approve)`);
+        notes.push(`Auto-approved ${n} website(s) whose forms passed every automatic check`);
+        log(`auto-approved ${n} candidate(s)`);
+      } else notes.push('auto_approve is off in campaign.json: approve websites in outreach/review.csv, the next run continues from there');
+      process.env.OUTREACH_DRY_RUN_NEW_ONLY = "1";
+      await runPhase("dry_run", 60, true);
+      delete process.env.OUTREACH_DRY_RUN_NEW_ONLY;
+    }
+    if (!halted && cfg.auto_approve) {
+      const n = await m.auto.approveTestedAdapters(campaignId, `${ACTOR} (auto_approve)`);
+      notes.push(`Auto-approved ${n} form adapter(s) that passed the dry run`);
+    }
+    if (!halted) {
+      if (cfg.allow_live) await runPhase("live", 120, true);
+      else notes.push('Live sending is off: set "allow_live": true in outreach/campaign.json');
+    }
   }
-  await finalizeReports(m, applied.campaignId, runId, applied.notes, problems);
-  const final = (await m.runs.getRun(runId)).status;
-  log(`run ${runId.slice(0, 8)} finished: ${final}`);
-  await m.dashboard({ campaignId: applied.campaignId, runId, problems, phase: `${mode} run finished: ${final}` });
+  api.server.close();
+  for (const p of problems) log(`PROBLEM: ${p}`);
+  const last = jobRunIds[jobRunIds.length - 1] ?? null;
+  await finalizeReports(m, campaignId, last, notes, problems, jobRunIds);
+  current = last;
+  await dash(`${phaseLabel()} finished`);
   await sql.end();
-  return code === 0 && !["failed", "lost"].includes(final) ? 0 : 1;
+  return exitCode;
 }
 
-async function finalizeReports(m: Mods, campaignId: string, runId: string | null, notes: string[] = [], problems: string[] = []) {
-  await m.report.writeReports({ stateDir: STATE_DIR, campaignId, runId, repo: REPO, notes, problems, artifactDir: ARTIFACT_DIR });
+async function finalizeReports(m: Mods, campaignId: string, runId: string | null, notes: string[] = [], problems: string[] = [], jobRunIds: string[] = runId ? [runId] : []) {
+  await m.report.writeReports({ stateDir: STATE_DIR, campaignId, runId, jobRunIds, repo: REPO, notes, problems, artifactDir: ARTIFACT_DIR });
   for (let i = 0; i < 3; i++) if (await checkpointer(m)("final")) return;
   throw new Error("Final state push failed");
 }
@@ -266,9 +319,12 @@ async function cmdFinalize(): Promise<number> {
   const [last] = await sql<{ id: string; campaign_id: string }[]>`select id, campaign_id from runs order by created_at desc limit 1`;
   if (last && (active.length || !existsSync(join(ARTIFACT_DIR, "manifest.json")))) {
     await finalizeReports(m, last.campaign_id, last.id);
-    if (active.length) await m.dashboard({ campaignId: last.campaign_id, runId: last.id, phase: "run cancelled" });
   } else {
     await checkpointer(m)("finalize");
+  }
+  if (last) {
+    const r = await m.runs.getRun(last.id);
+    await m.dashboard({ campaignId: last.campaign_id, runId: last.id, phase: `job ended: last run ${r.status}` });
   }
   await sql.end();
   return 0;

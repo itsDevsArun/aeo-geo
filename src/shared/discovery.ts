@@ -73,7 +73,7 @@ export interface DiscoveryTarget {
   query: string;
   /** ISO 3166-1 alpha-2, or "ALL" for worldwide. */
   country: string;
-  /** Lower runs first (country priority order). */
+  /** Lower runs first: country order x 1000 + position of the query/category in its list. */
   priority: number;
 }
 
@@ -111,15 +111,18 @@ export function buildDiscoveryQueries(c: {
   const industry = ANY_INDUSTRY.test(c.industry.trim()) ? "" : c.industry.trim();
   const city = c.city_region.trim();
   const out: DiscoveryTarget[] = [];
-  targetCountries(c).forEach((country, priority) => {
+  targetCountries(c).forEach((country, countryIdx) => {
+    let n = 0;
+    const priority = () => countryIdx * 1000 + n++;
     const name = country === "ALL" ? "" : COUNTRY_NAMES[country] ?? country;
     const qs = [...custom];
     if (industry && city) qs.push(`${industry} in ${city}`, `${industry} ${city} contact`, `${industry} company ${city} ${name}`.trim());
     else if (industry) qs.push(`${industry} ${name} contact us`.replace(/\s+/g, " ").trim(), `${industry} company ${name}`.trim());
-    for (const q of qs) out.push({ query: q.replace(/\s+/g, " ").slice(0, 300), country, priority });
+    // OSM categories first, in the owner's order (e.g. trades that get leads from websites, then professional firms).
     // Free OSM source: one query per category per country; "ALL" expands to osm_other_countries.
     const osmCountries = country === "ALL" ? osmOthers.filter((x) => !targetCountries(c).includes(x)) : [country];
-    for (const oc of osmCountries) for (const t of osm) out.push({ query: `${OSM_PREFIX}${t}`, country: oc, priority });
+    for (const t of osm) for (const oc of osmCountries) out.push({ query: `${OSM_PREFIX}${t}`, country: oc, priority: priority() });
+    for (const q of qs) out.push({ query: q.replace(/\s+/g, " ").slice(0, 300), country, priority: priority() });
   });
   const seen = new Set<string>();
   return out.filter((t) => (seen.has(`${t.country}|${t.query}`) ? false : (seen.add(`${t.country}|${t.query}`), true)));
