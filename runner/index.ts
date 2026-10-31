@@ -21,6 +21,13 @@ function envReq(name: string): string {
   return v;
 }
 
+class ItemTimeout extends Error {}
+/** Hard limit per website: a page with a runaway script can block page.evaluate forever. */
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let t: NodeJS.Timeout;
+  return Promise.race([p, new Promise<T>((_, rej) => { t = setTimeout(() => rej(new ItemTimeout(`${what} took longer than ${Math.round(ms / 1000)} s`)), ms); })]).finally(() => clearTimeout(t));
+}
+
 const log = (msg: string) => console.log(`[runner ${new Date().toISOString()}] ${msg}`);
 
 async function main(): Promise<number> {
@@ -59,13 +66,23 @@ async function main(): Promise<number> {
   process.on("SIGTERM", onSignal);
 
   let g: GuardedContext | null = null;
+  const launchOpts = {
+    testHostSuffix: testMode ? process.env.RUNNER_TEST_HOST_SUFFIX : undefined,
+    hostResolverRules: testMode ? process.env.RUNNER_TEST_HOST_RESOLVER_RULES : undefined,
+  };
+  const inspectMs = Number(process.env.RUNNER_INSPECT_TIMEOUT_MS || 180_000);
+  const attemptMs = Number(process.env.RUNNER_ATTEMPT_TIMEOUT_MS || 240_000);
+  /** Kill a hung browser and start a fresh one. */
+  const restartBrowser = async () => {
+    const old = g;
+    g = null;
+    await Promise.race([old?.close(), new Promise((r) => setTimeout(r, 15_000))]).catch(() => undefined);
+    g = await launchGuarded(launchOpts);
+  };
   let reason = "queue_exhausted";
   let error: string | undefined;
   try {
-    g = await launchGuarded({
-      testHostSuffix: testMode ? process.env.RUNNER_TEST_HOST_SUFFIX : undefined,
-      hostResolverRules: testMode ? process.env.RUNNER_TEST_HOST_RESOLVER_RULES : undefined,
-    });
+    g = await launchGuarded(launchOpts);
 
     if (claim.offerCheck.required && claim.offerCheck.facts.length) {
       const page = await g.context.newPage();
@@ -120,11 +137,28 @@ async function main(): Promise<number> {
             }
           }
         } else if (work.type === "inspect") {
-          await inspectCandidate(g, api, work);
-          log(`item ${processed}: inspection done`);
+          try {
+            await withTimeout(inspectCandidate(g!, api, work), inspectMs, "Website inspection");
+            log(`item ${processed}: inspection done`);
+          } catch (e) {
+            if (!(e instanceof ItemTimeout)) throw e;
+            log(`item ${processed}: inspection timed out, restarting browser`);
+            await restartBrowser();
+            await api.inspection({ candidateId: work.candidateId, status: "error", error: `Website froze the browser (${e.message}); skipped` }).catch(() => undefined);
+          }
         } else {
-          const outcome = await processAttempt(g, api, work);
-          log(`item ${processed}: ${work.type} attempt -> ${outcome}`);
+          try {
+            const outcome = await withTimeout(processAttempt(g!, api, work), attemptMs, "Form attempt");
+            log(`item ${processed}: ${work.type} attempt -> ${outcome}`);
+          } catch (e) {
+            if (!(e instanceof ItemTimeout)) throw e;
+            log(`item ${processed}: ${work.type} attempt timed out, restarting browser`);
+            await restartBrowser();
+            // Only accepted if submit was NOT attempted yet; an attempt already past the submit gate
+            // is refused here by the server and becomes "uncertain" (never retried).
+            await api.attempt({ attemptId: work.attemptId, status: work.type === "live" ? "failed_before_submit" : "dry_run_failed",
+              error: `Website froze the browser (${e.message}); skipped` }).catch(() => undefined);
+          }
         }
         consecutiveErrors = 0;
       } catch (e) {

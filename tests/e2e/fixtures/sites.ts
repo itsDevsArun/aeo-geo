@@ -72,6 +72,10 @@ const sites: Record<string, Site> = {
     if (req.url === "/contact") return { html: page("Contact", `<h1>Contact us</h1>${standardForm("/contact")}`) };
     return { status: 404, html: "nf" };
   },
+  "frozen-site.test": () => ({
+    // A runaway script that freezes the page after load (seen on a real site).
+    html: page("Frozen", `<a href="/contact">Contact</a><script>setTimeout(() => { for (;;) {} }, 300)</script>`),
+  }),
   "quiet-cafe.test": (req) => {
     if (req.url === "/") return { html: page("Quiet Cafe", `<h1>Quiet Cafe</h1><p>Call us. No online form.</p>`) };
     return { status: 404, html: "nf" };
