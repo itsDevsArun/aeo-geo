@@ -240,13 +240,31 @@ async function cmdRun(): Promise<number> {
         await m.runs.requestStop(runId, `${ACTOR} (outreach-stop workflow)`).catch((e) => log(`stop failed: ${e.message}`));
       }
     }, 30_000);
+    // Watchdog: if the runner makes no progress (no new event) for too long, stop it.
+    // The run is then closed as lost: in-flight live attempts become "uncertain", never retried.
+    const stallMs = Number(process.env.OUTREACH_STALL_MINUTES || 12) * 60_000;
+    let lastProgress = Date.now();
+    let lastSeen = 0;
+    const watchdog = setInterval(async () => {
+      const [r] = await sql<{ id: number | null }[]>`select max(id)::int as id from run_events where run_id = ${runId}`.catch(() => [{ id: null }]);
+      if ((r?.id ?? 0) > lastSeen) { lastSeen = r!.id!; lastProgress = Date.now(); return; }
+      if (Date.now() - lastProgress > stallMs) {
+        log(`WATCHDOG: no progress for ${Math.round(stallMs / 60000)} min, stopping the runner`);
+        notes.push(`${mode}: runner stalled and was restarted by the watchdog`);
+        lastProgress = Date.now();
+        child?.kill("SIGKILL");
+      }
+    }, 30_000);
     const code: number = await new Promise((r) => child!.on("exit", (c) => r(c ?? 1)));
+    clearInterval(watchdog);
     clearInterval(evTimer); clearInterval(cpTimer); clearInterval(stopTimer); clearInterval(dashTimer);
     await printEvents();
     const run = await m.runs.getRun(runId);
     if (["queued", "running", "stopping"].includes(run.status)) {
       await m.runs.markLost(runId, `${ACTOR} (runner exited without finishing)`);
       log("runner did not finish the run; marked lost (in-flight live attempts -> uncertain)");
+      const [{ n }] = await sql<{ n: number }[]>`select count(*)::int as n from attempts where run_id = ${runId} and status in ('uncertain','submitting')`;
+      if (n === 0 && run.mode === "live") await m.runs.markRunReconciled(runId, `${ACTOR} (auto: no uncertain attempts)`).catch(() => undefined);
     }
     const final = await m.runs.getRun(runId);
     log(`${mode} run ${runId.slice(0, 8)} finished: ${final.status} (${final.finish_reason})`);
