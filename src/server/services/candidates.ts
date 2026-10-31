@@ -4,11 +4,11 @@ import { audit, runEvent } from "../audit";
 import { db, isUniqueViolation, type Sql } from "../db";
 import { HttpError } from "../http";
 import type { RunRow } from "../runner-auth";
-import { getCampaign } from "./campaigns";
+import { getCampaign, senderOf } from "./campaigns";
 import { classifySearchResult } from "@/shared/discovery";
 import { analyzeForm, validateMapping, type FormInfo, type MappingEntry, type PageFlags } from "@/shared/forms";
 import { InspectionRequest, MappingEntrySchema, SearchResultsRequest } from "@/shared/runner-api";
-import { normalizeDomainInput } from "@/shared/urls";
+import { normalizeDomainInput, normalizeUrl } from "@/shared/urls";
 
 /** Maximum Brave result page offset (API allows 0..9). */
 export const MAX_SEARCH_OFFSET = 9;
@@ -132,6 +132,19 @@ export async function recordInspection(run: RunRow, input: z.infer<typeof Inspec
     const [cand] = await sql<{ id: string; campaign_id: string; suitability_notes: string }[]>`
       select id, campaign_id, suitability_notes from candidates where id = ${input.candidateId} for update`;
     if (!cand || cand.campaign_id !== run.campaign_id) throw new HttpError(404, "Candidate not found");
+    // Website moved to another domain: treat it as the same business (never contacted twice).
+    const movedTo = input.finalUrl ? normalizeUrl(input.finalUrl)?.domain : null;
+    const [cdom] = await sql<{ domain: string; business_id: string }[]>`select domain, business_id from candidates where id = ${cand.id}`;
+    if (movedTo && movedTo !== cdom.domain) {
+      const [owner] = await sql<{ business_id: string }[]>`select business_id from business_domains where domain = ${movedTo}`;
+      if (!owner) await sql`insert into business_domains (domain, business_id) values (${movedTo}, ${cdom.business_id})`;
+      else if (owner.business_id !== cdom.business_id) {
+        await sql`update candidates set inspection_status = 'error', inspection_error = ${`Duplicate: redirects to ${movedTo}, already a candidate`}, review_status = 'rejected', updated_at = now() where id = ${cand.id}`;
+        await runEvent({ runId: run.id, campaignId: run.campaign_id, candidateId: cand.id, type: "duplicate_prevented", message: `Redirects to ${movedTo} (already known)`, data: { count: 1, stage: "inspection" } }, sql);
+        return { contactPageId: null, adapterStatus: null };
+      }
+      if (await isBusinessSuppressed(cdom.business_id, sql)) await sql`update candidates set review_status = 'suppressed' where id = ${cand.id}`;
+    }
     let contactPageId: string | null = null;
     let adapterStatus: string | null = null;
     const notes: string[] = [];
@@ -145,7 +158,7 @@ export async function recordInspection(run: RunRow, input: z.infer<typeof Inspec
           ${input.screenshotEvidenceId ?? null}, ${`${input.formsFound} form(s) found`}) returning id`;
       contactPageId = cp.id;
       if (form && flags) {
-        const analysis = analyzeForm(form, flags);
+        const analysis = analyzeForm(form, flags, senderOf(await getCampaign(run.campaign_id, sql)));
         notes.push(...suitabilityNotes(analysis, flags));
         const [existing] = await sql<{ id: string; status: string }[]>`select id, status from form_adapters where candidate_id = ${cand.id}`;
         adapterStatus = analysis.status;
@@ -292,7 +305,8 @@ export async function updateAdapterMapping(adapterId: string, raw: unknown, acto
     if (!a) throw new HttpError(404, "Adapter not found");
     const known = new Set((a.fields?.fields ?? []).map((f) => f.selector));
     for (const m of input.mapping) if (!known.has(m.selector)) throw new HttpError(400, `Unknown field selector ${m.selector}`);
-    const errors = validateMapping(input.mapping as MappingEntry[]);
+    const [cc] = await sql<{ campaign_id: string }[]>`select campaign_id from candidates where id = ${a.candidate_id}`;
+    const errors = validateMapping(input.mapping as MappingEntry[], senderOf(await getCampaign(cc.campaign_id, sql)));
     const status = errors.length ? "needs_manual" : "proposed";
     await sql`update form_adapters set mapping = ${sql.json(input.mapping as never)},
       submit_selector = coalesce(${input.submitSelector ?? null}, submit_selector),
@@ -317,7 +331,8 @@ export async function decideAdapter(adapterId: string, raw: unknown, actor: stri
       if (a.review_status !== "approved") problems.push("Approve the candidate website first.");
       if (!a.fields?.fields || !a.flags) problems.push("No inspected form is stored for this adapter.");
       else problems.push(...analyzeForm(a.fields, a.flags).blocking);
-      problems.push(...validateMapping(a.mapping));
+      const [cc] = await sql<{ campaign_id: string }[]>`select campaign_id from candidates where id = ${a.candidate_id}`;
+      problems.push(...validateMapping(a.mapping, senderOf(await getCampaign(cc.campaign_id, sql))));
       if (!a.submit_selector) problems.push("No submit button mapped.");
       if (problems.length) throw new HttpError(422, "Adapter cannot be approved", problems);
     }

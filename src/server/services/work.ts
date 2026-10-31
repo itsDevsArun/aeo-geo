@@ -100,7 +100,8 @@ async function dryRunWork(run: RunRow, campaign: Campaign, sql: Sql): Promise<Wo
 async function liveWork(run: RunRow, campaign: Campaign, sql: Sql): Promise<WorkItem> {
   const [{ used }] = await sql<{ used: number }[]>`select count(*)::int as used from attempts where run_id = ${run.id} and mode = 'live'
     and status <> 'failed_before_submit'`;
-  if (used >= campaign.max_live_attempts_per_run) return { type: "stop", reason: "limit_reached" };
+  const limit = Number(process.env.OUTREACH_LIVE_LIMIT || 0) || campaign.max_live_attempts_per_run;
+  if (used >= limit) return { type: "stop", reason: "limit_reached" };
   for (let i = 0; i < 25; i++) {
     const [t] = await sql<Target[]>`
       select ${TARGET_COLUMNS(sql)} from candidates c
@@ -150,8 +151,22 @@ export async function reserveLiveAttempt(run: RunRow, campaign: Campaign, t: Tar
 
 async function createAttemptWork(run: RunRow, campaign: Campaign, t: Target, mode: "dry_run" | "live", sql: Sql): Promise<WorkItem> {
   if (!campaign.active_template_version_id) throw new HttpError(422, "No active template");
-  const version = await getTemplateVersion(campaign.active_template_version_id, sql);
-  const message = renderForRecipient(version, campaign, t.label_verified ? t.label : null);
+  let version = await getTemplateVersion(campaign.active_template_version_id, sql);
+  let message = renderForRecipient(version, campaign, t.label_verified ? t.label : null);
+  // If the reviewed form limits the message length, fall back to the short template (never truncate).
+  const [cp] = await sql<{ fields: { fields?: { selector: string; maxLength?: number }[] } }[]>`
+    select cp.fields from form_adapters a join contact_pages cp on cp.id = a.contact_page_id where a.id = ${t.adapter_id}`;
+  const msgSel = t.mapping.find((m) => m.role === "message")?.selector;
+  const limit = cp?.fields?.fields?.find((f) => f.selector === msgSel)?.maxLength;
+  if (limit && message.body.length > limit && version.kind !== "short") {
+    const [shortV] = await sql<{ id: string }[]>`select v.id from template_versions v join message_templates mt on mt.id = v.template_id
+      where mt.campaign_id = ${campaign.id} and mt.kind = 'short' order by v.version desc limit 1`;
+    if (shortV) {
+      const sv = await getTemplateVersion(shortV.id, sql);
+      const sm = renderForRecipient(sv, campaign, t.label_verified ? t.label : null);
+      if (sm.body.length <= limit) { version = sv; message = sm; }
+    }
+  }
   const fieldValues = valuesForMapping(t.mapping, senderOf(campaign), message);
   const inserted = await sql<{ id: string }[]>`
     insert into attempts (run_id, campaign_id, candidate_id, business_id, adapter_id, template_version_id, mode, status,

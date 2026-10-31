@@ -51,6 +51,25 @@ xyz.com.au,opt_out,2026-11-03,mana kiya
 
 **Band karna ho toh:** `campaign.json` mein `"allow_live": false` karo, toh sirf dhoondhna aur check karna hoga, submit nahi. Ya `"auto_approve": false` karo, toh har site tum `review.csv` se approve karoge.
 
+
+## 🎯 Target: har run mein kitne submit
+`campaign.json` → `target_submissions_per_run` (abhi **75**). `auto` run tab tak cycle chalata hai (websites dhoondo → check → submit) jab tak 75 submit na ho jayein, ya job ka time (~5 ghante) khatam na ho jaaye. Jitne reh gaye, agla run wahin se aage karega.
+
+### Kyun har website par submit nahi ho sakta (asli data, 300 sites)
+- **~30% sites par CAPTCHA hai.** Use bypass karna galat hai, isliye wo skip hoti hain.
+- **~20% sites dead hain ya unpar koi form nahi hai.**
+- **~11% sites ke form job application ke hain.**
+- **Baaki forms aisa kuch maangte hain jo tool jhooth bole bina nahi bhar sakta,** jaise last name, zip code, ya "aap kaunsi service chahte ho".
+
+Isliye 100 dhoondhi hui sites mein se lagbhag 10–12 hi sahi tarah submit ho sakti hain. **Target 75 submit karne ke liye run zyada sites dhoondhta hai** (100 par nahi rukta).
+
+### Aur forms unlock karne ke liye (optional)
+`campaign.json` → `sender` mein ye bhar do:
+- `last_name`: bahut saare US forms First + Last maangte hain
+- `zip` aur `address`: kai forms ye maangte hain
+
+Ye sach honi chahiye. Khaali chhodoge toh aise forms skip honge. `city`, `state` aur `country` abhi Bangalore / Karnataka / India hain.
+
 ## Manual flow (optional, agar khud control chahiye)
 
 ### 1. Websites dhoondo (discovery)

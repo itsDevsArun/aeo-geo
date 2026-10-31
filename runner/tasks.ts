@@ -48,20 +48,28 @@ export async function inspectCandidate(g: GuardedContext, api: RunnerApi, item: 
   g.setAllowedSite(item.url);
   const base = { candidateId: item.candidateId };
   try {
-    const origin = new URL(item.url).origin;
-    const robots = await robotsFor(g.context, origin);
+    const robots = await robotsFor(g.context, new URL(item.url).origin);
     if (!isAllowed(robots, "/")) {
       await api.inspection({ ...base, status: "blocked", error: "robots.txt disallows automated access to the site" });
       return;
     }
-    const res = await page.goto(item.url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT });
+    // Open the homepage; if the bare/www host does not resolve, try the other one.
+    // A business that moved to a new domain is followed (the new domain is linked to the same business).
+    g.setAllowedSite(null);
+    const alt = (() => { const u = new URL(item.url); u.hostname = u.hostname.startsWith("www.") ? u.hostname.slice(4) : `www.${u.hostname}`; return u.toString(); })();
+    let res = await page.goto(item.url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT }).catch((e) => { if (/ERR_BLOCKED_BY_CLIENT|ERR_NAME_NOT_RESOLVED|ERR_CONNECTION/.test(String(e))) return null; throw e; });
+    if (!res) res = await page.goto(alt, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT });
     await settle(page);
-    if (!sameSite(page.url(), item.url)) throw new Error("Homepage redirected off-site");
+    if (!/^https?:/.test(page.url())) throw new Error("Website not reachable");
+    const siteUrl = page.url();
+    g.setAllowedSite(siteUrl);
+    if (!sameSite(siteUrl, item.url)) await api.event("page_opened", `Website moved to ${new URL(siteUrl).hostname}`, { candidateId: item.candidateId });
     await api.event("page_opened", `Opened homepage (HTTP ${res?.status() ?? "?"})`, { candidateId: item.candidateId, data: { url: page.url() } });
     const homeText = await visibleText(page);
-    const links = (await contactLinks(page)).filter((l) => sameSite(l.href, item.url)).slice(0, 3);
+    const links = (await contactLinks(page)).filter((l) => sameSite(l.href, siteUrl)).slice(0, 4);
     const toTry = [...links.map((l) => l.href), page.url()];
-    if (links.length === 0) toTry.unshift(`${origin}/contact`, `${origin}/contact-us`);
+    const siteOrigin = new URL(siteUrl).origin;
+    if (links.length === 0) toTry.unshift(`${siteOrigin}/contact`, `${siteOrigin}/contact-us`);
 
     let chosen: { url: string; form: FormInfo; formsFound: number; title: string } | null = null;
     let lastUrl = page.url();
@@ -73,7 +81,7 @@ export async function inspectCandidate(g: GuardedContext, api: RunnerApi, item: 
         const r = await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT }).catch(() => null);
         if (!r || r.status() >= 400) continue;
         await settle(page);
-        if (!sameSite(page.url(), item.url)) continue;
+        if (!sameSite(page.url(), siteUrl)) continue;
       }
       lastUrl = page.url();
       const forms = await extractForms(page);
@@ -142,8 +150,11 @@ async function fillForm(page: Page, item: AttemptItem): Promise<{ values: Record
     const value = item.fieldValues[m.selector];
     if (m.role === "skip" || value === undefined) continue;
     const loc = page.locator(m.selector);
-    const tag = await loc.evaluate((el) => el.tagName.toLowerCase());
-    if (tag === "select") {
+    const [tag, type] = await loc.evaluate((el) => [el.tagName.toLowerCase(), ((el as HTMLInputElement).type || "").toLowerCase()]);
+    if (type === "radio" || type === "checkbox") {
+      await loc.check({ timeout: 10000, force: true });
+      if (!(await loc.isChecked())) return { values, problem: `Option "${m.label}" could not be selected` };
+    } else if (tag === "select") {
       await loc.selectOption({ label: value }).catch(async () => loc.selectOption(value));
     } else {
       await loc.fill(value, { timeout: 10000 });
@@ -189,6 +200,18 @@ export async function processAttempt(g: GuardedContext, api: RunnerApi, item: At
     if (filled.problem) {
       await shoot(api, page, { kind: "filled", ...meta });
       await api.attempt({ attemptId: item.attemptId, status: live ? "failed_before_submit" : "dry_run_failed", error: filled.problem, adapterIssue: filled.problem, finalUrl: page.url() });
+      return live ? "failed_before_submit" : "dry_run_failed";
+    }
+    // The form's own validation must pass, otherwise the browser would not send anything.
+    const invalid = await page.evaluate((sel) => {
+      const f = document.querySelector(sel) as HTMLFormElement | null;
+      if (!f || typeof f.checkValidity !== "function" || f.tagName !== "FORM") return [] as string[];
+      return Array.from(f.querySelectorAll(":invalid")).map((el) => `${(el as HTMLInputElement).name || el.id}: ${(el as HTMLInputElement).validationMessage}`).slice(0, 5);
+    }, item.formSelector).catch(() => [] as string[]);
+    if (invalid.length) {
+      await shoot(api, page, { kind: "filled", ...meta });
+      const problem = `Form validation would block sending: ${invalid.join("; ")}`;
+      await api.attempt({ attemptId: item.attemptId, status: live ? "failed_before_submit" : "dry_run_failed", error: problem, adapterIssue: problem, finalUrl: page.url() });
       return live ? "failed_before_submit" : "dry_run_failed";
     }
     await api.attempt({ attemptId: item.attemptId, status: "filled", fieldValues: filled.values });

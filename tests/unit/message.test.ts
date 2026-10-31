@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FORBIDDEN_SENTENCE, REQUIRED_LINK } from "@/shared/constants";
 import { checkOfferFacts, containsRequiredLink, DEFAULT_TEMPLATES, renderTemplate, validateOutgoingMessage, validateTemplate } from "@/shared/message";
 
-const sender = { name: "Arun", business: "Devs Arun", email: "itsdevsarun@gmail.com", phone: "+91 76673 11203", website: "https://devsarun.io/aeo-geo/" };
+const sender = { name: "Arun", business: "Devs Arun", email: "itschool408@gmail.com", phone: "+91 7654534323", website: "https://devsarun.io/aeo-geo/" };
 
 describe("required link rule", () => {
   it("detects the exact standalone link", () => {

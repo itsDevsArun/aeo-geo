@@ -262,26 +262,40 @@ async function cmdRun(): Promise<number> {
   } else if (requested !== "auto") {
     await runPhase(requested as Mode, JOB_BUDGET_MIN, false);
   } else {
-    // One click: discover -> auto-approve clean forms -> dry run -> auto-approve tested adapters -> live.
+    // One click, repeated in cycles until the target number of submissions is reached or time runs out:
+    // discover a batch -> auto-approve clean forms -> dry run -> auto-approve tested adapters -> live.
     const cfg = await m.config.readAutoSettings(CONFIG_DIR);
-    await runPhase("discovery", 150, false);
-    if (!halted) {
+    const submittedInJob = async () => {
+      if (!jobRunIds.length) return 0;
+      const [r] = await sql<{ n: number }[]>`select count(*)::int as n from attempts where run_id in ${sql(jobRunIds)}
+        and mode = 'live' and submit_started_at is not null and status <> 'failed_before_submit'`;
+      return r.n;
+    };
+    for (let cycle = 1; !halted; cycle++) {
+      const left = JOB_BUDGET_MIN - (Date.now() - jobStart) / 60000;
+      const done = await submittedInJob();
+      if (cfg.allow_live && done >= cfg.target) { notes.push(`Target reached: ${done} submissions (target ${cfg.target})`); break; }
+      if (left < 25) { notes.push(`Stopped after ${cycle - 1} cycle(s): job time budget used up (${done}/${cfg.target} submissions)`); break; }
+      log(`cycle ${cycle}: ${done}/${cfg.target} submissions so far, ${Math.round(left)} min left`);
+      const before = jobRunIds.length;
+      await runPhase("discovery", Math.min(90, Math.max(15, Math.floor(left * 0.55))), false);
+      const disc = jobRunIds[jobRunIds.length - 1];
+      const [{ found }] = jobRunIds.length > before ? await sql<{ found: number }[]>`select count(*)::int as found from candidates where discovered_run_id = ${disc}` : [{ found: 0 }];
+      if (halted) break;
       if (cfg.auto_approve) {
         const n = await m.auto.approveCleanCandidates(campaignId, `${ACTOR} (auto_approve)`);
-        notes.push(`Auto-approved ${n} website(s) whose forms passed every automatic check`);
-        log(`auto-approved ${n} candidate(s)`);
+        notes.push(`Cycle ${cycle}: ${found} new website(s), ${n} auto-approved (form passed every automatic check)`);
       } else notes.push('auto_approve is off in campaign.json: approve websites in outreach/review.csv, the next run continues from there');
       process.env.OUTREACH_DRY_RUN_NEW_ONLY = "1";
-      await runPhase("dry_run", 60, true);
+      await runPhase("dry_run", 45, true);
       delete process.env.OUTREACH_DRY_RUN_NEW_ONLY;
-    }
-    if (!halted && cfg.auto_approve) {
-      const n = await m.auto.approveTestedAdapters(campaignId, `${ACTOR} (auto_approve)`);
-      notes.push(`Auto-approved ${n} form adapter(s) that passed the dry run`);
-    }
-    if (!halted) {
-      if (cfg.allow_live) await runPhase("live", 120, true);
-      else notes.push('Live sending is off: set "allow_live": true in outreach/campaign.json');
+      if (halted) break;
+      if (cfg.auto_approve) await m.auto.approveTestedAdapters(campaignId, `${ACTOR} (auto_approve)`);
+      if (!cfg.allow_live) { notes.push('Live sending is off: set "allow_live": true in outreach/campaign.json'); break; }
+      process.env.OUTREACH_LIVE_LIMIT = String(Math.max(1, cfg.target - (await submittedInJob())));
+      await runPhase("live", 120, true);
+      delete process.env.OUTREACH_LIVE_LIMIT;
+      if (found === 0) { notes.push(`No new websites found in cycle ${cycle}: add more osm_categories or countries`); break; }
     }
   }
   api.server.close();
