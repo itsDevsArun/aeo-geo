@@ -53,6 +53,7 @@ export const FieldInfoSchema = z.object({
   required: z.boolean(),
   visible: z.boolean(),
   options: z.array(z.string().max(200)).max(100).optional(),
+  maxLength: z.number().int().min(0).max(1_000_000).optional(),
 });
 
 export const FormInfoSchema = z.object({

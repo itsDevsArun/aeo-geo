@@ -49,9 +49,9 @@
     "interior design studio contact us",
     "software company contact us"
   ],
-  "max_candidates": 100,
-  "max_live_attempts_per_run": 10,
-  "min_delay_seconds": 20,
+  "max_candidates": 150,
+  "max_live_attempts_per_run": 75,
+  "min_delay_seconds": 5,
   "excluded_domains": [],
   "dry_run_fill_domains": [],
   "suppressed_domains": [],
@@ -60,12 +60,19 @@
   "sender": {
     "name": "Arun",
     "business": "Devs Arun",
-    "email": "itsdevsarun@gmail.com",
-    "phone": "+91 76673 11203",
-    "website": "https://devsarun.io/aeo-geo/"
+    "email": "itschool408@gmail.com",
+    "phone": "+91 7654534323",
+    "website": "https://devsarun.io/aeo-geo/",
+    "last_name": "",
+    "city": "Bangalore",
+    "state": "Karnataka",
+    "zip": "",
+    "address": "",
+    "country": "India"
   },
   "sender_verified": true,
   "active_template": "standard",
   "evidence_retention_days": 180,
-  "auto_approve": true
+  "auto_approve": true,
+  "target_submissions_per_run": 75
 }

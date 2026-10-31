@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeForm, classifyField, detectConfirmation, detectNoSolicitation, detectPurpose, isHoneypot, validateMapping, valuesForMapping, type FieldInfo, type FormInfo, type PageFlags } from "@/shared/forms";
+import { analyzeForm, neutralOption, classifyField, detectConfirmation, detectNoSolicitation, detectPurpose, isHoneypot, validateMapping, valuesForMapping, type FieldInfo, type FormInfo, type PageFlags } from "@/shared/forms";
 
 const f = (p: Partial<FieldInfo>): FieldInfo => ({ selector: `#${p.name ?? "x"}`, tag: "input", type: "text", name: "", id: "", label: "", placeholder: "", autocomplete: "", required: false, visible: true, ...p });
 const flags = (p: Partial<PageFlags> = {}): PageFlags => ({ captcha: false, captcha_kinds: [], no_solicitation: false, consent_required: false, login_required: false, purpose: "general_enquiry", robots_disallowed: false, file_upload_required: false, multi_step: false, ...p });
@@ -90,5 +90,48 @@ describe("confirmation detection", () => {
     expect(detectConfirmation({ text: "Thank you for visiting. Contact", url: "https://x.com/c" }, { text: "Thank you for visiting. Contact", url: "https://x.com/c" }).status).toBe("unclear");
     expect(detectConfirmation({ text: "Form", url: "https://x.com/c" }, { text: "Form", url: "https://x.com/thank-you" }).status).toBe("confirmed");
     expect(detectConfirmation({ text: "Form", url: "https://x.com/c" }, { text: "This field is required.", url: "https://x.com/c" }).status).toBe("error_after_submit");
+  });
+});
+
+describe("truthful answers for extra required fields", () => {
+  const sender = { name: "Arun", business: "Devs Arun", email: "e@x.com", phone: "+91 1", website: "https://devsarun.io/aeo-geo/", city: "Bangalore", state: "Karnataka", country: "India" };
+  it("fills city/state/country from the sender, skips forms needing missing zip or last name", () => {
+    const withCity = [...standard, f({ name: "city", label: "City", required: true }), f({ name: "state", label: "State", required: true })];
+    const a = analyzeForm(form(withCity), flags(), sender);
+    expect(a.status).toBe("proposed");
+    expect(valuesForMapping(a.mapping, sender, { subject: "S", body: "B" })["#city"]).toBe("Bangalore");
+    expect(analyzeForm(form([...standard, f({ name: "zip", label: "Zip Code", required: true })]), flags(), sender).status).toBe("needs_manual");
+    expect(analyzeForm(form([...standard, f({ name: "zip", label: "Zip Code", required: true })]), flags(), { ...sender, zip: "560001" }).status).toBe("proposed");
+    expect(analyzeForm(form([...standard, f({ name: "lname", label: "Last", required: true })]), flags(), sender).status).toBe("needs_manual");
+  });
+  it("picks only options that are true for a vendor enquiry", () => {
+    expect(neutralOption(["Email", "Phone", "Text"], "Preferred contact method")).toBe("Email");
+    expect(neutralOption(["Google", "Facebook", "Friend", "Other"], "How did you hear about us?")).toBe("Other");
+    expect(neutralOption(["Google", "Facebook", "Friend"], "How did you hear about us?")).toBeNull();
+    expect(neutralOption(["Roof Repair", "Roof Replacement", "Other"], "Service")).toBe("Other");
+    expect(neutralOption(["Roof Repair", "Roof Replacement"], "Service")).toBeNull();
+    expect(neutralOption(["Yes", "No"], "Are you a new customer?")).toBeNull();
+    expect(neutralOption(["Select...", "General Inquiry", "Quote"], "Reason")).toBe("General Inquiry");
+  });
+  it("maps required dropdowns and radio groups to a truthful option or sends the form to manual review", () => {
+    const sel = f({ name: "reason", tag: "select", type: "select-one", label: "Reason", required: true, options: ["Select", "Quote", "General Inquiry"] });
+    const a = analyzeForm(form([...standard, sel]), flags(), sender);
+    expect(a.status).toBe("proposed");
+    expect(a.mapping.find((m) => m.selector === "#reason")).toMatchObject({ role: "fixed", value: "General Inquiry" });
+    const radios = ["Email", "Phone"].map((l, i) => f({ selector: `#cm${i}`, name: "contact_method", type: "radio", label: l, required: true }));
+    const b = analyzeForm(form([...standard, ...radios]), flags(), sender);
+    expect(b.status).toBe("proposed");
+    expect(b.mapping.find((m) => m.selector === "#cm0")).toMatchObject({ role: "fixed", value: "check" });
+    const svc = ["Roof Repair", "Gutters"].map((l, i) => f({ selector: `#s${i}`, name: "service", type: "checkbox", label: l, required: true }));
+    expect(analyzeForm(form([...standard, ...svc]), flags(), sender).status).toBe("needs_manual");
+  });
+  it("still never ticks consent boxes", () => {
+    const consent = f({ name: "gdpr", type: "checkbox", label: "I agree to the privacy policy", required: true });
+    expect(analyzeForm(form([...standard, consent]), flags(), sender).blocking.join()).toMatch(/consent/i);
+  });
+  it("recognises more success messages", () => {
+    for (const t of ["Your request has been received.", "We have received your message", "Submitted successfully"]) {
+      expect(detectConfirmation({ text: "Form", url: "https://x.com/c" }, { text: t, url: "https://x.com/c" }).status, t).toBe("confirmed");
+    }
   });
 });

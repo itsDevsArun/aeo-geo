@@ -6,6 +6,13 @@ export interface SenderIdentity {
   email: string;
   phone: string;
   website: string;
+  /** Optional details some forms require. Empty = forms that need them are skipped. */
+  lastName?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  address?: string;
+  country?: string;
 }
 
 export interface RecipientContext {

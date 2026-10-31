@@ -301,7 +301,7 @@ describe("GitHub-only mode", () => {
     setConfig({ auto_approve: true, allow_live: true, sender_verified: true, active_template: "standard", min_delay_seconds: 5 });
     const r = await job("auto", { BRAVE_SEARCH_API_KEY: "" });
     expect(r.code, r.out).toBe(0);
-    expect(r.out).toMatch(/auto-approved [1-9]\d* candidate/);
+    expect(r.out).toMatch(/cycle 1: 0\/75 submissions/);
     expect(r.out).toMatch(/discovery run .* finished/);
     expect(r.out).toMatch(/dry_run run .* finished/);
     expect(r.out).toMatch(/live run .* finished: completed/);
@@ -313,6 +313,7 @@ describe("GitHub-only mode", () => {
     const dash = readFileSync(join(tmp, "dashboard.md"), "utf8");
     expect(dash).toContain("auto run finished");
     expect(dash).toContain("## This job");
+    expect(dash).toMatch(/Submitted: [1-9]\d* \/ target 75/);
     expect(dash).toMatch(/osm-plumber\.test/);
     expect(dash).toMatch(/<img src="[^"]+post_attempt[^"]+\?raw=true"/);
     expect(table("candidates").find((c) => c.domain === "nosolicit-co.test")!.review_status).toBe("pending");

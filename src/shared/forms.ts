@@ -14,6 +14,7 @@ export interface FieldInfo {
   required: boolean;
   visible: boolean;
   options?: string[];
+  maxLength?: number;
 }
 
 export interface FormInfo {
@@ -64,6 +65,11 @@ export interface MappingEntry {
 
 const ROLE_RULES: { role: FieldRole; re: RegExp }[] = [
   { role: "email", re: /e-?mail/ },
+  { role: "zip", re: /\bzip\b|zip ?code|postal|post ?code|postcode|pin ?code/ },
+  { role: "city", re: /\bcity\b|\btown\b|suburb/ },
+  { role: "state", re: /\bstate\b|province|region/ },
+  { role: "country", re: /\bcountry\b/ },
+  { role: "address", re: /address|street/ },
   { role: "phone", re: /phone|mobile|tel\b|telephone|whatsapp|contact number|cell/ },
   { role: "first_name", re: /first[ _-]?name|given[ _-]?name|fname/ },
   { role: "last_name", re: /last[ _-]?name|surname|family[ _-]?name|lname/ },
@@ -95,8 +101,12 @@ export function classifyField(f: FieldInfo): FieldRole | null {
   if (ac === "name") return "name";
   if (ac === "url") return "website";
   const hay = `${f.label} ${f.name} ${f.id} ${f.placeholder}`.toLowerCase().replace(/[_\-[\]]+/g, " ");
+  const lab = f.label.toLowerCase().replace(/[*:()]|required/g, "").trim();
+  if (lab === "first") return "first_name";
+  if (lab === "last") return "last_name";
+  if (/e-?mail/.test(hay) && !/address/.test(lab.replace(/e-?mail address/, ""))) return "email";
   if (f.tag === "textarea") {
-    if (/address/.test(hay) && !/message|enquiry|inquiry/.test(hay)) return null;
+    if (/address/.test(hay) && !/message|enquiry|inquiry/.test(hay)) return "address";
     return "message";
   }
   for (const { role, re } of ROLE_RULES) if (re.test(hay)) return role;
@@ -136,6 +146,25 @@ export function detectPurpose(form: FormInfo, pageUrl: string): FormPurpose {
   return "unknown";
 }
 
+/**
+ * For a required choice (dropdown / radio group / checkbox group) pick an option that is TRUE
+ * for an unsolicited vendor enquiry, or null if none is clearly true (then: manual review).
+ */
+export function neutralOption(options: string[], question = ""): string | null {
+  const opts = options.map((o) => o.trim()).filter((o) => o && !/^(-+|select|choose|please (select|choose)|--.*--)/i.test(o));
+  const find = (re: RegExp) => opts.find((o) => re.test(o.toLowerCase())) ?? null;
+  const all = `${question} ${opts.join(" | ")}`.toLowerCase();
+  if (opts.some((o) => /^e-?mail$/i.test(o)) && opts.some((o) => /phone|call|text/i.test(o))) return find(/^e-?mail$/); // preferred contact method
+  if (opts.some((o) => /^mobile|^cell/i.test(o)) && opts.some((o) => /land ?line|home|office|work/i.test(o))) return find(/^mobile|^cell/); // phone type
+  if (/hear about|find us|referr|how did you|source/.test(all) || (opts.some((o) => /google|facebook|friend|referral|yelp/i.test(o)) && find(/^other/))) {
+    return find(/^(other|internet|online|web search|website|search engine)\b/);
+  }
+  if (/best time|time to (call|contact)/.test(all)) return find(/^(any ?time|any|no preference|either)\b/);
+  if (/new customer|existing customer|current customer|homeowner|property owner|are you an?/.test(all)) return null; // would be untrue either way
+  // Service / reason / project type: only an explicit general or "other" choice is honest.
+  return find(/^(general( (inquiry|enquiry|question|information))?|other( (inquiry|enquiry|service|services|question))?|question|business inquiry|partnership|vendor|other services)$/);
+}
+
 export interface FormAnalysis {
   mapping: MappingEntry[];
   status: "proposed" | "needs_manual";
@@ -157,7 +186,7 @@ export const DISALLOWED_PURPOSES: FormPurpose[] = [
 ];
 
 /** Propose a mapping and decide whether the form needs manual review. */
-export function analyzeForm(form: FormInfo, flags: PageFlags): FormAnalysis {
+export function analyzeForm(form: FormInfo, flags: PageFlags, sender?: SenderIdentity): FormAnalysis {
   const reasons: string[] = [];
   const blocking: string[] = [];
   if (flags.robots_disallowed) blocking.push("robots.txt disallows automated access to this page");
@@ -170,7 +199,24 @@ export function analyzeForm(form: FormInfo, flags: PageFlags): FormAnalysis {
   const mapping: MappingEntry[] = [];
   let hasMessage = false;
   let hasEmail = false;
+  // Required radio/checkbox groups (same name): choose a truthful neutral option or skip the form.
+  const groups = new Map<string, FieldInfo[]>();
+  for (const f of form.fields) if ((f.type === "radio" || f.type === "checkbox") && f.visible && !isHoneypot(f)) {
+    const key = f.name || f.selector;
+    groups.set(key, [...(groups.get(key) ?? []), f]);
+  }
+  const handled = new Set<string>();
+  for (const [, g] of groups) {
+    if (g.length < 2 || !g.some((f) => f.required)) continue;
+    if (g.some((f) => /terms|privacy|consent|agree|gdpr|policy|marketing|accept/i.test(`${f.label} ${f.name}`))) continue; // handled below (blocked)
+    const pick = neutralOption(g.map((f) => f.label), form.text.slice(0, 2000));
+    for (const f of g) handled.add(f.selector);
+    if (!pick) { reasons.push(`Required choice (${g.map((f) => f.label).slice(0, 4).join(" / ")}) has no truthful option`); continue; }
+    const chosen = g.find((f) => f.label.trim() === pick)!;
+    mapping.push({ selector: chosen.selector, role: "fixed", required: true, label: `${chosen.label} (${chosen.type})`, value: "check" });
+  }
   for (const f of form.fields) {
+    if (handled.has(f.selector)) continue;
     if (["hidden", "submit", "button", "image", "reset", "file", "password"].includes(f.type)) {
       if (f.type === "file" && f.required) blocking.push("Form requires a file upload");
       continue;
@@ -187,6 +233,12 @@ export function analyzeForm(form: FormInfo, flags: PageFlags): FormAnalysis {
       mapping.push({ selector: f.selector, role: "skip", required: f.required, label: f.label || f.name });
       continue;
     }
+    if (f.tag === "select") {
+      const pick = f.required ? neutralOption(f.options ?? [], f.label) : null;
+      if (f.required && !pick) reasons.push(`Required dropdown "${f.label || f.name}" has no truthful option`);
+      mapping.push(pick ? { selector: f.selector, role: "fixed", required: true, label: f.label || f.name, value: pick } : { selector: f.selector, role: "skip", required: f.required, label: f.label || f.name });
+      continue;
+    }
     const role = classifyField(f);
     if (role === "message") hasMessage = true;
     if (role === "email") hasEmail = true;
@@ -195,14 +247,15 @@ export function analyzeForm(form: FormInfo, flags: PageFlags): FormAnalysis {
       mapping.push({ selector: f.selector, role: "skip", required: f.required, label: f.label || f.name || f.placeholder });
       continue;
     }
-    if (role === "last_name" && f.required) reasons.push("Required last-name field: sender last name is not configured");
-    if (f.tag === "select" && f.required) reasons.push(`Required dropdown "${f.label || f.name}" needs a reviewed value`);
-    mapping.push({
-      selector: f.selector,
-      role: f.tag === "select" ? "skip" : role,
-      required: f.required,
-      label: f.label || f.name || f.placeholder,
-    });
+    const senderKey = { last_name: "lastName", city: "city", state: "state", zip: "zip", address: "address", country: "country" }[role as string] as keyof SenderIdentity | undefined;
+    if (senderKey && f.required && !(sender?.[senderKey] ?? "").toString().trim()) {
+      reasons.push(`Required ${role.replace("_", " ")} field "${f.label || f.name}": set sender ${senderKey} in campaign.json to allow this form`);
+    }
+    if (senderKey && !f.required) {
+      mapping.push({ selector: f.selector, role: "skip", required: false, label: f.label || f.name || f.placeholder });
+      continue;
+    }
+    mapping.push({ selector: f.selector, role, required: f.required, label: f.label || f.name || f.placeholder });
   }
   if (!hasMessage) reasons.push("No message field detected");
   if (!hasEmail) reasons.push("No email field detected");
@@ -212,7 +265,7 @@ export function analyzeForm(form: FormInfo, flags: PageFlags): FormAnalysis {
 }
 
 /** Check a (possibly human-edited) mapping is complete enough to automate. */
-export function validateMapping(mapping: MappingEntry[]): string[] {
+export function validateMapping(mapping: MappingEntry[], sender?: SenderIdentity): string[] {
   const errors: string[] = [];
   const roles = mapping.map((m) => m.role);
   if (!roles.includes("message")) errors.push("Mapping must include a message field");
@@ -220,7 +273,8 @@ export function validateMapping(mapping: MappingEntry[]): string[] {
   for (const m of mapping) {
     if (m.required && m.role === "skip") errors.push(`Required field "${m.label}" is not mapped`);
     if (m.role === "fixed" && !(m.value ?? "").trim()) errors.push(`Fixed field "${m.label}" needs a value`);
-    if (m.role === "last_name") errors.push(`Field "${m.label}": last name is not part of the sender identity; use a reviewed fixed value`);
+    const key = { last_name: "lastName", city: "city", state: "state", zip: "zip", address: "address", country: "country" }[m.role as string] as keyof SenderIdentity | undefined;
+    if (key && m.required && sender && !(sender[key] ?? "").toString().trim()) errors.push(`Field "${m.label}" needs sender ${key} in campaign.json`);
   }
   return errors;
 }
@@ -242,8 +296,21 @@ export function valuesForMapping(
 function valueForRole(m: MappingEntry, s: SenderIdentity, msg: { subject: string; body: string }): string | null {
   switch (m.role) {
     case "name":
+      return s.lastName ? `${s.name} ${s.lastName}` : s.name;
     case "first_name":
       return s.name;
+    case "last_name":
+      return s.lastName || null;
+    case "city":
+      return s.city || null;
+    case "state":
+      return s.state || null;
+    case "zip":
+      return s.zip || null;
+    case "address":
+      return s.address || null;
+    case "country":
+      return s.country || null;
     case "company":
       return s.business;
     case "email":
@@ -264,7 +331,7 @@ function valueForRole(m: MappingEntry, s: SenderIdentity, msg: { subject: string
 }
 
 const SUCCESS_MARKERS =
-  /\b(thank(s| you)( so much)?( for (contacting|reaching out|your (message|enquiry|inquiry|submission)|getting in touch))?|message (has been |was )?(sent|received|submitted)|we('ll| will) (be in touch|get back|contact you|respond)|successfully (sent|submitted)|submission (received|successful)|enquiry (received|sent)|inquiry (received|sent)|form (submitted|received))\b/i;
+  /\b(we('ve| have) received|(has|have) been (received|sent|submitted|delivered)|received your (message|enquiry|inquiry|request|submission)|submitted successfully|sent successfully|message (was )?delivered|someone will (be in touch|contact you|get back)|we appreciate (you|your)|your (request|enquiry|inquiry|submission) (has been|was) (received|sent|submitted)|success!|thank(s| you)( so much)?( for (contacting|reaching out|your (message|enquiry|inquiry|submission)|getting in touch))?|message (has been |was )?(sent|received|submitted)|we('ll| will) (be in touch|get back|contact you|respond)|successfully (sent|submitted)|submission (received|successful)|enquiry (received|sent)|inquiry (received|sent)|form (submitted|received))\b/i;
 const ERROR_MARKERS =
   /\b(this field is required|required field|please (fill|enter|complete|correct)|is (invalid|required)|error (occurred|sending)|failed to send|could not be sent|try again|captcha|verify you are human)\b/i;
 

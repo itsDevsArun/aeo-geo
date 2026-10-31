@@ -84,6 +84,7 @@ export async function extractForms(page: Page): Promise<FormInfo[]> {
         autocomplete: (el.getAttribute("autocomplete") || "").slice(0, 100),
         required: el.required || el.getAttribute("aria-required") === "true",
         visible: isVisible(el),
+        maxLength: (el as HTMLInputElement).maxLength > 0 ? (el as HTMLInputElement).maxLength : undefined,
         options: el.tagName === "SELECT" ? Array.from((el as unknown as HTMLSelectElement).options).slice(0, 100).map((o) => o.text.slice(0, 200)) : undefined,
       }));
       const buttons = Array.from(container.querySelectorAll('button, input[type="submit"], input[type="image"]')) as HTMLElement[];

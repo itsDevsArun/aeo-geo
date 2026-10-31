@@ -268,7 +268,7 @@ test("live run: refused until enabled+verified; submits approved+tested targets 
     expect(s.body["your-message"]).toContain(REQUIRED_LINK);
     expect(s.body["your-message"]).toContain("$199");
     expect(s.body["your-message"]).not.toContain("not guaranteed");
-    expect(s.body["your-email"]).toBe("itsdevsarun@gmail.com");
+    expect(s.body["your-email"]).toBe("itschool408@gmail.com");
     expect(s.body["website_hp"]).toBe(""); // honeypot untouched
   }
   const events = page.getByTestId("events");

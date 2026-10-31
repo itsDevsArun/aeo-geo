@@ -75,7 +75,11 @@ export async function renderDashboard(opts: { campaignId: string | null; runId: 
         (select count(*)::int from attempts t where t.run_id = r.id and t.mode = 'live' and t.submit_started_at is not null and t.status <> 'failed_before_submit') as submitted,
         (select count(*)::int from attempts t where t.run_id = r.id and t.status = 'confirmed') as confirmed
       from runs r where r.id in ${sql(jobIds)} order by r.created_at`;
-    out.push("## This job", "", "| Phase | Status | Found | Forms checked | Dry run OK | Submitted | Confirmed |", "|---|---|---|---|---|---|---|");
+    const totSub = phases.reduce((a, p) => a + p.submitted, 0);
+    const totConf = phases.reduce((a, p) => a + p.confirmed, 0);
+    const [tgt] = await sql<{ t: number }[]>`select target_submissions_per_run as t from campaigns where id = ${opts.campaignId}`;
+    out.push("## This job", "", `**Submitted: ${totSub} / target ${tgt?.t ?? "—"}** · **Website confirmed: ${totConf} of ${totSub} (${totSub ? Math.round((100 * totConf) / totSub) : 0}%)**`, "");
+    out.push("| Phase | Status | Found | Forms checked | Dry run OK | Submitted | Confirmed |", "|---|---|---|---|---|---|---|");
     for (const p of phases) out.push(`| ${mdCell(p.mode)} | ${mdCell(p.status)}${p.finish_reason ? ` (${mdCell(p.finish_reason)})` : ""} | ${p.found} | ${p.inspected} | ${p.dry_ok} | **${p.submitted}** | **${p.confirmed}** |`);
     out.push("");
     const subs = await sql<Record<string, any>[]>`

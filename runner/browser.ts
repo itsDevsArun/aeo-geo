@@ -13,7 +13,7 @@ export interface GuardedContext {
 }
 
 /** Honest identity for API calls (Overpass rejects browser-like agents with HTTP 406). */
-export const API_USER_AGENT = `${RUNNER_USER_AGENT_TOKEN}/1.0 (+https://devsarun.io/aeo-geo/; itsdevsarun@gmail.com)`;
+export const API_USER_AGENT = `${RUNNER_USER_AGENT_TOKEN}/1.0 (+https://devsarun.io/aeo-geo/; itschool408@gmail.com)`;
 
 export const USER_AGENT = `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 ${RUNNER_USER_AGENT_TOKEN}/1.0 (+https://devsarun.io/aeo-geo/)`;
 

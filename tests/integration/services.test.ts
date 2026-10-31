@@ -100,7 +100,7 @@ describe("campaign settings & templates", () => {
     expect(c.live_enabled).toBe(false);
     const audits = await sql()`select action from audit_events where entity_id = ${campaignId}`;
     expect(audits.map((a) => a.action)).toContain("campaign.update_sensitive");
-    await s.campaigns.updateCampaign(campaignId, { sender_email: "itsdevsarun@gmail.com" }, ACTOR);
+    await s.campaigns.updateCampaign(campaignId, { sender_email: "itschool408@gmail.com" }, ACTOR);
     await s.campaigns.verifySender(campaignId, ACTOR);
   });
 

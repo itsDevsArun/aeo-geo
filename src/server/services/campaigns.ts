@@ -30,6 +30,13 @@ export interface Campaign {
   sender_email: string;
   sender_phone: string;
   sender_website: string;
+  sender_last_name: string;
+  sender_city: string;
+  sender_state: string;
+  sender_zip: string;
+  sender_address: string;
+  sender_country: string;
+  target_submissions_per_run: number;
   sender_verified_at: Date | null;
   sender_verified_by: string | null;
   active_template_version_id: string | null;
@@ -39,7 +46,11 @@ export interface Campaign {
 }
 
 export function senderOf(c: Campaign): SenderIdentity {
-  return { name: c.sender_name, business: c.sender_business, email: c.sender_email, phone: c.sender_phone, website: c.sender_website };
+  return {
+    name: c.sender_name, business: c.sender_business, email: c.sender_email, phone: c.sender_phone, website: c.sender_website,
+    lastName: c.sender_last_name ?? "", city: c.sender_city ?? "", state: c.sender_state ?? "", zip: c.sender_zip ?? "",
+    address: c.sender_address ?? "", country: c.sender_country ?? "",
+  };
 }
 
 const domainList = z
@@ -79,6 +90,13 @@ export const CampaignPatch = z
     sender_email: z.string().trim().email().max(200),
     sender_phone: z.string().trim().max(40).regex(/^[+\d\s().-]*$/, "Phone may contain digits, spaces, + ( ) - ."),
     sender_website: z.string().trim().url().max(300),
+    sender_last_name: z.string().trim().max(100),
+    sender_city: z.string().trim().max(100),
+    sender_state: z.string().trim().max(100),
+    sender_zip: z.string().trim().max(20),
+    sender_address: z.string().trim().max(200),
+    sender_country: z.string().trim().max(100),
+    target_submissions_per_run: z.coerce.number().int().min(1).max(500),
     evidence_retention_days: z.coerce.number().int().min(7).max(3650),
   })
   .partial()
@@ -94,7 +112,7 @@ const SENSITIVE_KEYS = new Set([
   "sender_website",
   "dry_run_fill_domains",
 ]);
-const SENDER_KEYS = ["sender_name", "sender_business", "sender_email", "sender_phone", "sender_website"];
+const SENDER_KEYS = ["sender_name", "sender_business", "sender_email", "sender_phone", "sender_website", "sender_last_name", "sender_city", "sender_state", "sender_zip", "sender_address", "sender_country"];
 
 export async function listCampaigns(): Promise<Campaign[]> {
   return db()<Campaign[]>`select * from campaigns order by is_active desc, created_at desc`;
