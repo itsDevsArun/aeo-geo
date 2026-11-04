@@ -1,20 +1,20 @@
 # Outreach overview
 
-Updated 2026-11-04 07:02:26 UTC · campaign **Devs Arun AEO/GEO outreach** · any · any city · countries US → AU → CA → ALL · live mode **ENABLED**
+Updated 2026-11-04 12:29:42 UTC · campaign **Devs Arun AEO/GEO outreach** · any · any city · countries US → AU → CA → ALL · live mode **ENABLED**
 
 | Metric | Value |
 |---|---|
-| Websites discovered | 3300 |
-| Pending review | 2932 |
-| Approved live queue | 9 |
-| Forms inspected | 2652 |
-| Dry-run checks | 378 |
-| Live submission attempts | 261 |
-| Confirmation observed | 94 |
-| Unclear attempts | 120 |
-| Errors | 684 |
-| CAPTCHA / manual review | 1425 |
-| Duplicates prevented | 233 |
+| Websites discovered | 3450 |
+| Pending review | 3075 |
+| Approved live queue | 5 |
+| Forms inspected | 2763 |
+| Dry-run checks | 396 |
+| Live submission attempts | 270 |
+| Confirmation observed | 97 |
+| Unclear attempts | 125 |
+| Errors | 731 |
+| CAPTCHA / manual review | 1474 |
+| Duplicates prevented | 242 |
 | Awaiting reconciliation | 0 |
 
 > “Confirmation observed” = the website showed a new success message after submit. It does not prove delivery, reading or a lead.
@@ -30,6 +30,12 @@ Updated 2026-11-04 07:02:26 UTC · campaign **Devs Arun AEO/GEO outreach** · an
 
 | Run | Mode | Status | Reason | Requested (UTC) |
 |---|---|---|---|---|
+| [c09f4921](runs/2026-11-04_live_c09f4921.md) | live | completed | queue\_exhausted | 2026-11-04 12:28:59 UTC |
+| [0f68f38b](runs/2026-11-04_dry_run_0f68f38b.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 12:28:12 UTC |
+| [1be86f59](runs/2026-11-04_discovery_1be86f59.md) | discovery | completed | queue\_exhausted | 2026-11-04 12:20:21 UTC |
+| [a686e35b](runs/2026-11-04_live_a686e35b.md) | live | completed | queue\_exhausted | 2026-11-04 12:14:53 UTC |
+| [2e3f4822](runs/2026-11-04_dry_run_2e3f4822.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 12:13:06 UTC |
+| [0e211924](runs/2026-11-04_discovery_0e211924.md) | discovery | completed | queue\_exhausted | 2026-11-04 11:42:36 UTC |
 | [46c49b0e](runs/2026-11-04_live_46c49b0e.md) | live | completed | limit\_reached | 2026-11-04 06:57:38 UTC |
 | [b6bce34c](runs/2026-11-04_dry_run_b6bce34c.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 06:54:50 UTC |
 | [40c6f2d0](runs/2026-11-04_discovery_40c6f2d0.md) | discovery | completed | queue\_exhausted | 2026-11-04 06:23:34 UTC |
@@ -44,19 +50,9 @@ Updated 2026-11-04 07:02:26 UTC · campaign **Devs Arun AEO/GEO outreach** · an
 | [2223c951](runs/2026-11-04_discovery_2223c951.md) | discovery | completed | queue\_exhausted | 2026-11-04 04:26:49 UTC |
 | [e9eec5c6](runs/2026-11-04_live_e9eec5c6.md) | live | completed | queue\_exhausted | 2026-11-04 04:18:54 UTC |
 | [495c543b](runs/2026-11-04_dry_run_495c543b.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 04:15:39 UTC |
-| [3932ba23](runs/2026-11-04_discovery_3932ba23.md) | discovery | completed | queue\_exhausted | 2026-11-04 03:43:28 UTC |
-| [dbeacf2a](runs/2026-11-04_live_dbeacf2a.md) | live | completed | queue\_exhausted | 2026-11-04 03:37:27 UTC |
-| [68773158](runs/2026-11-04_dry_run_68773158.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 03:35:01 UTC |
-| [b1da410e](runs/2026-11-04_discovery_b1da410e.md) | discovery | completed | queue\_exhausted | 2026-11-04 02:56:21 UTC |
-| [6c69373a](runs/2026-11-03_live_6c69373a.md) | live | completed | queue\_exhausted | 2026-11-03 03:22:35 UTC |
-| [5cf1292c](runs/2026-11-03_dry_run_5cf1292c.md) | dry\_run | completed | queue\_exhausted | 2026-11-03 03:22:15 UTC |
 
 ## Last config applied
 
-- Cycle 1: 150 new website(s), 17 auto-approved (form passed every automatic check)
-- Cycle 2: 150 new website(s), 22 auto-approved (form passed every automatic check)
-- Cycle 3: 150 new website(s), 14 auto-approved (form passed every automatic check)
-- Cycle 4: 150 new website(s), 20 auto-approved (form passed every automatic check)
-- Cycle 5: 150 new website(s), 16 auto-approved (form passed every automatic check)
-- Cycle 6: 150 new website(s), 14 auto-approved (form passed every automatic check)
-- Target reached: 75 submissions (target 75)
+- Cycle 1: 150 new website(s), 6 auto-approved (form passed every automatic check)
+- Cycle 2: 0 new website(s), 0 auto-approved (form passed every automatic check)
+- No new websites found in cycle 2: add more osm\_categories or countries
