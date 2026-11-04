@@ -1,6 +1,6 @@
 # Outreach overview
 
-Updated 2026-11-04 12:29:42 UTC · campaign **Devs Arun AEO/GEO outreach** · any · any city · countries US → AU → CA → ALL · live mode **ENABLED**
+Updated 2026-11-04 15:16:58 UTC · campaign **Devs Arun AEO/GEO outreach** · any · any city · countries US → AU → CA → ALL · live mode **ENABLED**
 
 | Metric | Value |
 |---|---|
@@ -8,12 +8,12 @@ Updated 2026-11-04 12:29:42 UTC · campaign **Devs Arun AEO/GEO outreach** · an
 | Pending review | 3075 |
 | Approved live queue | 5 |
 | Forms inspected | 2763 |
-| Dry-run checks | 396 |
+| Dry-run checks | 401 |
 | Live submission attempts | 270 |
 | Confirmation observed | 97 |
 | Unclear attempts | 125 |
-| Errors | 731 |
-| CAPTCHA / manual review | 1474 |
+| Errors | 735 |
+| CAPTCHA / manual review | 1475 |
 | Duplicates prevented | 242 |
 | Awaiting reconciliation | 0 |
 
@@ -30,6 +30,9 @@ Updated 2026-11-04 12:29:42 UTC · campaign **Devs Arun AEO/GEO outreach** · an
 
 | Run | Mode | Status | Reason | Requested (UTC) |
 |---|---|---|---|---|
+| [ab20f84b](runs/2026-11-04_live_ab20f84b.md) | live | completed | queue\_exhausted | 2026-11-04 15:16:03 UTC |
+| [ea3ee50e](runs/2026-11-04_dry_run_ea3ee50e.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 15:15:15 UTC |
+| [56333a1b](runs/2026-11-04_discovery_56333a1b.md) | discovery | completed | queue\_exhausted | 2026-11-04 15:05:25 UTC |
 | [c09f4921](runs/2026-11-04_live_c09f4921.md) | live | completed | queue\_exhausted | 2026-11-04 12:28:59 UTC |
 | [0f68f38b](runs/2026-11-04_dry_run_0f68f38b.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 12:28:12 UTC |
 | [1be86f59](runs/2026-11-04_discovery_1be86f59.md) | discovery | completed | queue\_exhausted | 2026-11-04 12:20:21 UTC |
@@ -47,12 +50,8 @@ Updated 2026-11-04 12:29:42 UTC · campaign **Devs Arun AEO/GEO outreach** · an
 | [9c8bd1a2](runs/2026-11-04_discovery_9c8bd1a2.md) | discovery | completed | queue\_exhausted | 2026-11-04 05:02:46 UTC |
 | [a135bc35](runs/2026-11-04_live_a135bc35.md) | live | completed | queue\_exhausted | 2026-11-04 04:56:17 UTC |
 | [c429bf47](runs/2026-11-04_dry_run_c429bf47.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 04:53:42 UTC |
-| [2223c951](runs/2026-11-04_discovery_2223c951.md) | discovery | completed | queue\_exhausted | 2026-11-04 04:26:49 UTC |
-| [e9eec5c6](runs/2026-11-04_live_e9eec5c6.md) | live | completed | queue\_exhausted | 2026-11-04 04:18:54 UTC |
-| [495c543b](runs/2026-11-04_dry_run_495c543b.md) | dry\_run | completed | queue\_exhausted | 2026-11-04 04:15:39 UTC |
 
 ## Last config applied
 
-- Cycle 1: 150 new website(s), 6 auto-approved (form passed every automatic check)
-- Cycle 2: 0 new website(s), 0 auto-approved (form passed every automatic check)
-- No new websites found in cycle 2: add more osm\_categories or countries
+- Cycle 1: 0 new website(s), 0 auto-approved (form passed every automatic check)
+- No new websites found in cycle 1: add more osm\_categories or countries
