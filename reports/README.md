@@ -1,20 +1,20 @@
 # Outreach overview
 
-Updated 2026-11-05 06:26:17 UTC · campaign **Devs Arun AEO/GEO outreach** · any · any city · countries US → AU → CA → ALL · live mode **ENABLED**
+Updated 2026-11-06 06:47:12 UTC · campaign **Devs Arun AEO/GEO outreach** · any · any city · countries US → AU → CA → ALL · live mode **ENABLED**
 
 | Metric | Value |
 |---|---|
-| Websites discovered | 4650 |
-| Pending review | 4165 |
-| Approved live queue | 7 |
-| Forms inspected | 3624 |
-| Dry-run checks | 509 |
-| Live submission attempts | 341 |
-| Confirmation observed | 130 |
-| Unclear attempts | 157 |
-| Errors | 975 |
-| CAPTCHA / manual review | 1822 |
-| Duplicates prevented | 747 |
+| Websites discovered | 5550 |
+| Pending review | 4964 |
+| Approved live queue | 8 |
+| Forms inspected | 4408 |
+| Dry-run checks | 621 |
+| Live submission attempts | 416 |
+| Confirmation observed | 168 |
+| Unclear attempts | 188 |
+| Errors | 1123 |
+| CAPTCHA / manual review | 2239 |
+| Duplicates prevented | 779 |
 | Awaiting reconciliation | 0 |
 
 > “Confirmation observed” = the website showed a new success message after submit. It does not prove delivery, reading or a lead.
@@ -30,35 +30,33 @@ Updated 2026-11-05 06:26:17 UTC · campaign **Devs Arun AEO/GEO outreach** · an
 
 | Run | Mode | Status | Reason | Requested (UTC) |
 |---|---|---|---|---|
+| [e0521b61](runs/2026-11-06_live_e0521b61.md) | live | completed | limit\_reached | 2026-11-06 06:45:36 UTC |
+| [a2c99261](runs/2026-11-06_dry_run_a2c99261.md) | dry\_run | completed | queue\_exhausted | 2026-11-06 06:44:31 UTC |
+| [ab2b28a3](runs/2026-11-06_discovery_ab2b28a3.md) | discovery | completed | deadline | 2026-11-06 06:21:17 UTC |
+| [a4a26496](runs/2026-11-06_live_a4a26496.md) | live | completed | queue\_exhausted | 2026-11-06 06:11:33 UTC |
+| [8085295b](runs/2026-11-06_dry_run_8085295b.md) | dry\_run | completed | queue\_exhausted | 2026-11-06 06:08:05 UTC |
+| [f5a9321a](runs/2026-11-06_discovery_f5a9321a.md) | discovery | completed | queue\_exhausted | 2026-11-06 05:34:00 UTC |
+| [a1f5f6f1](runs/2026-11-06_live_a1f5f6f1.md) | live | completed | queue\_exhausted | 2026-11-06 05:27:02 UTC |
+| [8a12c942](runs/2026-11-06_dry_run_8a12c942.md) | dry\_run | completed | queue\_exhausted | 2026-11-06 05:24:31 UTC |
+| [a8e1ae83](runs/2026-11-06_discovery_a8e1ae83.md) | discovery | completed | queue\_exhausted | 2026-11-06 04:49:34 UTC |
+| [c516d43f](runs/2026-11-06_live_c516d43f.md) | live | completed | queue\_exhausted | 2026-11-06 04:42:41 UTC |
+| [f3820a64](runs/2026-11-06_dry_run_f3820a64.md) | dry\_run | completed | queue\_exhausted | 2026-11-06 04:40:05 UTC |
+| [25b39470](runs/2026-11-06_discovery_25b39470.md) | discovery | completed | queue\_exhausted | 2026-11-06 04:09:29 UTC |
+| [d9c1e7ce](runs/2026-11-06_live_d9c1e7ce.md) | live | completed | queue\_exhausted | 2026-11-06 04:00:42 UTC |
+| [c80e4e0b](runs/2026-11-06_dry_run_c80e4e0b.md) | dry\_run | completed | queue\_exhausted | 2026-11-06 03:57:48 UTC |
+| [f7f3cd2b](runs/2026-11-06_discovery_f7f3cd2b.md) | discovery | completed | queue\_exhausted | 2026-11-06 03:25:21 UTC |
+| [4077e053](runs/2026-11-06_live_4077e053.md) | live | completed | queue\_exhausted | 2026-11-06 03:16:15 UTC |
+| [6caf67d6](runs/2026-11-06_dry_run_6caf67d6.md) | dry\_run | completed | queue\_exhausted | 2026-11-06 03:13:14 UTC |
+| [e36c5dc4](runs/2026-11-06_discovery_e36c5dc4.md) | discovery | completed | queue\_exhausted | 2026-11-06 02:17:55 UTC |
 | [800411e6](runs/2026-11-05_live_800411e6.md) | live | completed | queue\_exhausted | 2026-11-05 06:25:18 UTC |
 | [f9d0a7f0](runs/2026-11-05_dry_run_f9d0a7f0.md) | dry\_run | completed | queue\_exhausted | 2026-11-05 06:24:39 UTC |
-| [06fdd3e1](runs/2026-11-05_discovery_06fdd3e1.md) | discovery | completed | deadline | 2026-11-05 06:13:23 UTC |
-| [8bb2abb6](runs/2026-11-05_live_8bb2abb6.md) | live | completed | queue\_exhausted | 2026-11-05 06:08:22 UTC |
-| [0cc496e5](runs/2026-11-05_dry_run_0cc496e5.md) | dry\_run | completed | queue\_exhausted | 2026-11-05 06:06:31 UTC |
-| [b3b7013f](runs/2026-11-05_discovery_b3b7013f.md) | discovery | completed | deadline | 2026-11-05 05:33:20 UTC |
-| [b537a17d](runs/2026-11-05_live_b537a17d.md) | live | completed | queue\_exhausted | 2026-11-05 05:26:03 UTC |
-| [d9f5b7fa](runs/2026-11-05_dry_run_d9f5b7fa.md) | dry\_run | completed | queue\_exhausted | 2026-11-05 05:23:57 UTC |
-| [3acab2a5](runs/2026-11-05_discovery_3acab2a5.md) | discovery | completed | queue\_exhausted | 2026-11-05 04:50:14 UTC |
-| [d380ad8b](runs/2026-11-05_live_d380ad8b.md) | live | completed | queue\_exhausted | 2026-11-05 04:42:37 UTC |
-| [720fa5ac](runs/2026-11-05_dry_run_720fa5ac.md) | dry\_run | completed | queue\_exhausted | 2026-11-05 04:40:05 UTC |
-| [a3394ff8](runs/2026-11-05_discovery_a3394ff8.md) | discovery | completed | queue\_exhausted | 2026-11-05 04:13:45 UTC |
-| [f3c1b375](runs/2026-11-05_live_f3c1b375.md) | live | completed | queue\_exhausted | 2026-11-05 04:08:18 UTC |
-| [193e1095](runs/2026-11-05_dry_run_193e1095.md) | dry\_run | completed | queue\_exhausted | 2026-11-05 04:06:13 UTC |
-| [95c770df](runs/2026-11-05_discovery_95c770df.md) | discovery | completed | queue\_exhausted | 2026-11-05 03:41:41 UTC |
-| [21a144da](runs/2026-11-05_live_21a144da.md) | live | completed | queue\_exhausted | 2026-11-05 03:36:44 UTC |
-| [f88d9dba](runs/2026-11-05_dry_run_f88d9dba.md) | dry\_run | completed | queue\_exhausted | 2026-11-05 03:34:36 UTC |
-| [0347a95e](runs/2026-11-05_discovery_0347a95e.md) | discovery | completed | queue\_exhausted | 2026-11-05 03:04:44 UTC |
-| [87949dfc](runs/2026-11-05_live_87949dfc.md) | live | completed | queue\_exhausted | 2026-11-05 03:00:45 UTC |
-| [186dc41e](runs/2026-11-05_dry_run_186dc41e.md) | dry\_run | completed | queue\_exhausted | 2026-11-05 02:59:13 UTC |
 
 ## Last config applied
 
-- Cycle 1: 150 new website(s), 12 auto-approved (form passed every automatic check)
-- Cycle 2: 150 new website(s), 8 auto-approved (form passed every automatic check)
-- Cycle 3: 150 new website(s), 12 auto-approved (form passed every automatic check)
-- Cycle 4: 150 new website(s), 11 auto-approved (form passed every automatic check)
-- Cycle 5: 150 new website(s), 16 auto-approved (form passed every automatic check)
-- Cycle 6: 150 new website(s), 13 auto-approved (form passed every automatic check)
-- Cycle 7: 150 new website(s), 10 auto-approved (form passed every automatic check)
-- Cycle 8: 150 new website(s), 1 auto-approved (form passed every automatic check)
-- Stopped after 8 cycle(s): job time budget used up (71/75 submissions)
+- Cycle 1: 150 new website(s), 19 auto-approved (form passed every automatic check)
+- Cycle 2: 150 new website(s), 18 auto-approved (form passed every automatic check)
+- Cycle 3: 150 new website(s), 17 auto-approved (form passed every automatic check)
+- Cycle 4: 150 new website(s), 15 auto-approved (form passed every automatic check)
+- Cycle 5: 150 new website(s), 21 auto-approved (form passed every automatic check)
+- Cycle 6: 150 new website(s), 3 auto-approved (form passed every automatic check)
+- Target reached: 75 submissions (target 75)
